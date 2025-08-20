@@ -32,6 +32,8 @@ class StudioManager:
             # Set required FFlags
             fflags = {
                 "DFFlagEnableWebStreamClientInStudio": True,
+                "DFFlagDisableWebStreamClientInStudioScripts": False,
+                "DFIntWebStreamClientRequestTimeoutMs": 5000,
                 "FFlagEnableLoadModule": True,
             }
             
