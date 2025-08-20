@@ -1,0 +1,5 @@
+plugin/DevPackages/
+plugin/Packages/
+plugin/src/server_info.json
+
+**/__pycache__/
