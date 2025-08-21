@@ -3,7 +3,7 @@
 registry = "test"
 
 [[package]]
-name = "boatbomber/jestluatestserver-plugin"
+name = "boatbomber/jestluatestserver-place"
 version = "0.1.0"
 dependencies = [["Jest", "jsdotlua/jest@3.10.0"], ["JestGlobals", "jsdotlua/jest-globals@3.10.0"]]
 

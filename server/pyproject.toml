@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
     "aiofiles>=24.1.0",
+    "requests>=2.32.5",
 ]
 
 [project.optional-dependencies]

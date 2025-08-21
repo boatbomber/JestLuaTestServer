@@ -18,31 +18,31 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     plugin_manager = PluginManager()
     studio_manager = StudioManager()
-    
+
     try:
         logger.info("Installing Roblox Studio plugin...")
         await plugin_manager.install_plugin()
-        
+
         logger.info("Starting Roblox Studio...")
         await studio_manager.start_studio()
-        
+
         app.state.plugin_manager = plugin_manager
         app.state.studio_manager = studio_manager
         app.state.test_queue = asyncio.Queue()
         app.state.result_queue = asyncio.Queue()
         app.state.active_tests = {}
-        
+
         yield
-        
+
     finally:
         logger.info("Shutting down server...")
-        
+
         if hasattr(app.state, "studio_manager"):
             await studio_manager.stop_studio()
-        
+
         if hasattr(app.state, "plugin_manager"):
             await plugin_manager.uninstall_plugin()
-        
+
         logger.info("Cleanup complete")
 
 
@@ -70,6 +70,8 @@ app.include_router(results.router)
 async def health_check():
     return {
         "status": "healthy",
-        "studio_running": hasattr(app.state, "studio_manager") and app.state.studio_manager.is_running(),
-        "plugin_installed": hasattr(app.state, "plugin_manager") and app.state.plugin_manager.is_installed(),
+        "studio_running": hasattr(app.state, "studio_manager")
+        and app.state.studio_manager.is_running(),
+        "plugin_installed": hasattr(app.state, "plugin_manager")
+        and app.state.plugin_manager.is_installed(),
     }

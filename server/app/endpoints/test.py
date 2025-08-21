@@ -24,33 +24,41 @@ async def run_test(
     rbxm_data: bytes = Body(..., media_type="application/octet-stream"),
 ) -> TestResponse:
     test_id = str(uuid.uuid4())
-    
+
     if not rbxm_data:
         raise HTTPException(status_code=400, detail="No rbxm data provided")
-    
+
     try:
         logger.info(f"Starting test {test_id}, rbxm size: {len(rbxm_data)} bytes")
-        
+
         result_future = asyncio.Future()
         request.app.state.active_tests[test_id] = {
             "data": rbxm_data,
             "future": result_future,
         }
-        
-        await request.app.state.test_queue.put({
-            "test_id": test_id,
-            "data": rbxm_data,
-        })
-        
+
+        await request.app.state.test_queue.put(
+            {
+                "test_id": test_id,
+                "data": rbxm_data,
+            }
+        )
+
         try:
-            results = await asyncio.wait_for(result_future, timeout=30.0)
-            
-            return TestResponse(
-                test_id=test_id,
-                status="completed",
-                results=results,
-            )
-            
+            outcome = await asyncio.wait_for(result_future, timeout=30.0)
+            if outcome.get("success"):
+                return TestResponse(
+                    test_id=test_id,
+                    status="completed",
+                    results=outcome.get("results"),
+                )
+            else:
+                return TestResponse(
+                    test_id=test_id,
+                    status="failed",
+                    error=outcome.get("error"),
+                )
+
         except asyncio.TimeoutError:
             logger.error(f"Test {test_id} timed out")
             return TestResponse(
@@ -58,7 +66,7 @@ async def run_test(
                 status="timeout",
                 error="Test execution timed out after 30 seconds",
             )
-            
+
     except Exception as e:
         logger.error(f"Error running test {test_id}: {e}")
         return TestResponse(

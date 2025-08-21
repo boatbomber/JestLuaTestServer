@@ -7,70 +7,78 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
+
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-CHUNK_SIZE = 8192
-
 
 async def event_generator(request: Request) -> AsyncGenerator:
     logger.info("Client connected to SSE endpoint")
-    
+
     try:
         while True:
             if await request.is_disconnected():
                 logger.info("Client disconnected from SSE")
                 break
-            
+
             try:
-                test_data = await asyncio.wait_for(
-                    request.app.state.test_queue.get(), 
-                    timeout=1.0
-                )
-                
+                test_data = await asyncio.wait_for(request.app.state.test_queue.get(), timeout=5.0)
+
                 test_id = test_data["test_id"]
                 rbxm_data = test_data["data"]
-                
+                b64_rbxm = base64.b64encode(rbxm_data).decode("utf-8")
+
                 logger.info(f"Sending test {test_id} to plugin")
-                
+
                 yield {
                     "event": "test_start",
-                    "data": json.dumps({
-                        "test_id": test_id,
-                        "total_size": len(rbxm_data),
-                    }),
+                    "data": json.dumps(
+                        {
+                            "test_id": test_id,
+                            "total_size": len(b64_rbxm),
+                        }
+                    ),
                 }
-                
-                for i in range(0, len(rbxm_data), CHUNK_SIZE):
-                    chunk = rbxm_data[i:i + CHUNK_SIZE]
-                    chunk_b64 = base64.b64encode(chunk).decode("utf-8")
-                    
+
+                for i in range(0, len(b64_rbxm), settings.chunk_size):
+                    chunk = b64_rbxm[i : i + settings.chunk_size]
+
                     yield {
                         "event": "test_chunk",
-                        "data": json.dumps({
-                            "test_id": test_id,
-                            "chunk": chunk_b64,
-                            "offset": i,
-                            "size": len(chunk),
-                        }),
+                        "data": json.dumps(
+                            {
+                                "test_id": test_id,
+                                "chunk_buffer": {
+                                    "m": None,
+                                    "t": "buffer",
+                                    "base64": chunk,
+                                },
+                                "offset": i,
+                                "size": len(chunk),
+                            }
+                        ),
                     }
-                    
+
                     await asyncio.sleep(0.01)
-                
+
                 yield {
                     "event": "test_end",
-                    "data": json.dumps({
-                        "test_id": test_id,
-                    }),
+                    "data": json.dumps(
+                        {
+                            "test_id": test_id,
+                        }
+                    ),
                 }
-                
+
             except asyncio.TimeoutError:
                 yield {
                     "event": "ping",
                     "data": "keep-alive",
                 }
-                
+
     except asyncio.CancelledError:
         logger.info("SSE connection cancelled")
         raise

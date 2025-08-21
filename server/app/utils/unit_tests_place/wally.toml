@@ -1,6 +1,6 @@
 [package]
-name = "boatbomber/jestluatestserver-plugin"
-description = "Studio plugin for interacting with JestLuaTestServer"
+name = "boatbomber/jestluatestserver-place"
+description = "Studio place for running tests with JestLuaTestServer"
 version = "0.1.0"
 license = "Apache 2.0"
 authors = ["Zack Williams <zack@boatbomber.com>"]

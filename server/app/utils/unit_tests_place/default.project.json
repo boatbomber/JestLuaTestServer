@@ -1,0 +1,27 @@
+{
+    "name": "UnitTests",
+    "tree": {
+        "$className": "DataModel",
+
+        "HttpService": {
+            "$className": "HttpService",
+            "$properties": {
+                "HttpEnabled": true
+            }
+        },
+
+        "Workspace": {
+            "$className": "Workspace",
+            "KillSwitch": {
+                "$className": "BoolValue"
+            }
+        },
+
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "DevPackages": {
+                "$path": "DevPackages"
+            }
+        }
+    }
+}
