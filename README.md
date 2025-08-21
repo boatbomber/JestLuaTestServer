@@ -115,7 +115,7 @@ local function sum(a: number, b: number): number
 	return a + b
 end
 
-describe("oss_1", function()
+describe("sum", function()
     it("should add two positives", function()
 		expect(sum(1, 1)).toEqual(2)
 	end)
