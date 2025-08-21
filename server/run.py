@@ -13,13 +13,16 @@ logging.basicConfig(
 
 def main():
     try:
-        uvicorn.run(
+        config = uvicorn.Config(
             "app.main:app",
             host=settings.host,
             port=settings.port,
+            timeout_graceful_shutdown=5,
             reload=False,
             log_level=settings.log_level.lower(),
         )
+        server = uvicorn.Server(config)
+        server.run()
     except KeyboardInterrupt:
         logging.info("Server stopped by user")
         sys.exit(0)
