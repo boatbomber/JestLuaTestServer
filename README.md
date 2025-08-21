@@ -1,6 +1,6 @@
 # JestLuaTestServer
 
-A high-performance test runner for Jest Lua tests in Roblox Studio. Unlike traditional approaches like `run-in-roblox` that require Studio to open and close for each test run, JestLuaTestServer maintains a persistent Studio session that executes tests on-demand via HTTP, dramatically improving test execution speed in situation with repeated runs.
+A high-performance test runner for Jest Lua tests in Roblox Studio. Unlike traditional approaches like `run-in-roblox` that require Studio to open and close for each test run, JestLuaTestServer maintains a persistent Studio session that executes tests on-demand via HTTP, dramatically improving test execution speed in situations with repeated runs.
 
 ## Overview
 
