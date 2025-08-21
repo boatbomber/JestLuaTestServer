@@ -5,8 +5,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from app.config import settings
-
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +24,7 @@ class StudioManager:
 
             # Backup original settings if they exist
             if self.client_settings_path.exists():
-                with open(self.client_settings_path, "r") as f:
+                with open(self.client_settings_path) as f:
                     self.original_settings = json.load(f)
                 logger.info(f"Backed up original FFlags: {self.original_settings}")
 
@@ -68,7 +66,7 @@ class StudioManager:
 
     def build_placefile(self) -> bool:
         if not (self.unit_tests_place_dir / "DevPackages").exists():
-            logger.info(f"DevPackages not found, installing...")
+            logger.info("DevPackages not found, installing...")
             try:
                 subprocess.check_output(
                     ["wally", "install"], stderr=subprocess.STDOUT, cwd=self.unit_tests_place_dir
@@ -152,7 +150,7 @@ class StudioManager:
                 return False
 
             # Also start a task to monitor process health
-            health_task = asyncio.create_task(self._monitor_process_health())
+            asyncio.create_task(self._monitor_process_health())
 
             await asyncio.sleep(5)
 

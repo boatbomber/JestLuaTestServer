@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import uuid
-from typing import Dict
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
@@ -14,7 +13,7 @@ router = APIRouter()
 class TestResponse(BaseModel):
     test_id: str
     status: str
-    results: Dict | None = None
+    results: dict | None = None
     error: str | None = None
 
 
@@ -59,7 +58,7 @@ async def run_test(
                     error=outcome.get("error"),
                 )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"Test {test_id} timed out")
             return TestResponse(
                 test_id=test_id,

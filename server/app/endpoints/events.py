@@ -2,11 +2,10 @@ import asyncio
 import base64
 import json
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
-
 
 from app.config import settings
 
@@ -73,7 +72,7 @@ async def event_generator(request: Request) -> AsyncGenerator:
                     ),
                 }
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield {
                     "event": "ping",
                     "data": "keep-alive",
