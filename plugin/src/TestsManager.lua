@@ -1,3 +1,4 @@
+--!strict
 local HttpService = game:GetService("HttpService")
 local SerializationService = game:GetService("SerializationService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,38 +25,70 @@ local runCLIOptions = {
 }
 
 type TestId = string
-type SuccessfulTestResult = {
-	success: true,
-	results: any,
-}
-type ErrorResult = {
-	success: false,
-	error: string,
-}
+type Ok<T> = { success: true, results: T }
+type Err<E> = { success: false, error: E }
+type Outcome<T, E> = Ok<T> | Err<E>
 
 local TestsManager = {}
-TestsManager.testRbxmBuffers = {} :: { [TestId]: buffer }
-TestsManager.testRbxmBufferOffsets = {} :: { [TestId]: number }
+TestsManager.__index = TestsManager
 
-function TestsManager:runTest(testId: TestId): SuccessfulTestResult | ErrorResult
-	local runSuccess, runResult = pcall(function()
-		local test = self:deserializeTest(testId)
+type TestsManagerData = {
+	sseClient: WebStreamClient?,
+	sseClientConnections: { [string]: RBXScriptConnection },
+	active: boolean,
 
-		local status, jestResult = Jest.runCLI(script, runCLIOptions, { test }):awaitStatus()
+	testRbxmBuffers: { [TestId]: buffer },
+	testRbxmBufferOffsets: { [TestId]: number },
+}
 
-		test:Destroy()
+export type TestsManager = typeof(setmetatable({} :: TestsManagerData, TestsManager))
+-- or alternatively, in the new type solver...
+-- export type TestsManager = setmetatable<TestsManagerData, typeof(TestsManager)>
 
-		if status == "Rejected" then
-			return {
-				success = false,
-				error = tostring(jestResult),
-			}
-		end
+function TestsManager.init(): TestsManager
+	local self = setmetatable({
+		active = false,
+		sseClientConnections = {},
+		testRbxmBuffers = {},
+		testRbxmBufferOffsets = {},
+	}, TestsManager) :: TestsManager
 
+	self:start()
+
+	-- We can toggle the boolean value to manually disconnect during development or debugging
+	local KillSwitch = workspace:FindFirstChild("KillSwitch")
+	if KillSwitch then
+		KillSwitch.Changed:Connect(function()
+			self:stop()
+		end)
+	end
+
+	return self
+end
+
+function TestsManager._runTestUnsafe(self: TestsManager, testId: TestId): Outcome<any, string>
+	local test = self:deserializeTest(testId)
+
+	local status, jestResult = Jest.runCLI(script, runCLIOptions, { test }):awaitStatus()
+
+	test:Destroy()
+
+	if status == "Rejected" then
 		return {
-			success = true,
-			results = jestResult.results,
+			success = false,
+			error = tostring(jestResult),
 		}
+	end
+
+	return {
+		success = true,
+		results = jestResult.results,
+	}
+end
+
+function TestsManager.runTest(self: TestsManager, testId: TestId): Outcome<any, string>
+	local runSuccess, runResult = pcall(function()
+		return self:_runTestUnsafe(testId)
 	end)
 
 	if not runSuccess then
@@ -68,8 +101,8 @@ function TestsManager:runTest(testId: TestId): SuccessfulTestResult | ErrorResul
 	return runResult
 end
 
-function TestsManager:deserializeTest(testId: string): any
-	local buf = TestsManager.testRbxmBuffers[testId]
+function TestsManager.deserializeTest(self: TestsManager, testId: string): Instance
+	local buf = self.testRbxmBuffers[testId]
 	assert(buf, "No buffer found for testId: " .. testId)
 
 	local instances = SerializationService:DeserializeInstancesAsync(buf)
@@ -96,7 +129,7 @@ function TestsManager:deserializeTest(testId: string): any
 	return test
 end
 
-function TestsManager:reportTestOutcome(testId: TestId, outcome: SuccessfulTestResult | ErrorResult)
+function TestsManager.reportTestOutcome(testId: TestId, outcome: Outcome<any, string>): boolean
 	if outcome.success then
 		print("Test completed successfully:", outcome.results)
 	else
@@ -105,7 +138,7 @@ function TestsManager:reportTestOutcome(testId: TestId, outcome: SuccessfulTestR
 
 	local success, response = pcall(HttpService.RequestAsync, HttpService, {
 		Url = `{server_url}/_results`,
-		Method = "POST",
+		Method = "POST" :: "POST",
 		Headers = {
 			["Content-Type"] = "application/json",
 		},
@@ -113,31 +146,36 @@ function TestsManager:reportTestOutcome(testId: TestId, outcome: SuccessfulTestR
 			test_id = testId,
 			outcome = outcome,
 		}),
+		Compress = Enum.HttpCompression.None,
 	})
 
 	if not success then
 		warn("Failed to report test outcome:", response)
-	else
-		print("Reported test outcome for", testId)
+		return false
 	end
+
+	print("Reported test outcome for", testId)
+	return true
 end
 
-function TestsManager:awaitHealthyServer()
+function TestsManager.awaitHealthyServer()
 	local healthSuccess, healthResponse = pcall(HttpService.RequestAsync, HttpService, {
 		Url = `{server_url}/health`,
-		Method = "GET",
+		Method = "GET" :: "GET",
+		Compress = Enum.HttpCompression.None,
 	})
 	while not healthSuccess or healthResponse.StatusCode ~= 200 do
 		wait(1)
 		healthSuccess, healthResponse = pcall(HttpService.RequestAsync, HttpService, {
 			Url = `{server_url}/health`,
-			Method = "GET",
+			Method = "GET" :: "GET",
+			Compress = Enum.HttpCompression.None,
 		})
 	end
 end
 
-function TestsManager:connectSSEClient()
-	local success, sse_client = pcall(function()
+function TestsManager.connectSSEClient(self: TestsManager): WebStreamClient
+	local success, sseClient = pcall(function()
 		return HttpService:CreateWebStreamClient(Enum.WebStreamClientType.SSE, {
 			Url = `{server_url}/_events`,
 			Headers = {
@@ -148,29 +186,40 @@ function TestsManager:connectSSEClient()
 	end)
 
 	if not success then
-		error("Failed to create SSE client: " .. tostring(sse_client))
+		error("Failed to create SSE client: " .. tostring(sseClient))
 	else
 		print("Loaded SSE Client")
 	end
 
-	sse_client.MessageReceived:Connect(function(message)
+	-- Cleanup old connections
+	for _, connection in self.sseClientConnections do
+		connection:Disconnect()
+	end
+
+	self.sseClientConnections.MessageReceived = sseClient.MessageReceived:Connect(function(message)
 		self:handleSSEMessage(message)
 	end)
-	sse_client.Error:Connect(function(code, message)
+	self.sseClientConnections.Error = sseClient.Error:Connect(function(code, message)
 		print("SSE error", code, message)
 	end)
-	sse_client.Closed:Connect(function()
+	self.sseClientConnections.Closed = sseClient.Closed:Connect(function()
 		print("SSE connection closed")
+		if self.active then
+			-- Attempt to reconnect if the manager is still active
+			-- (WebStreamClient has a time restriction imposed by the engine, even with a keep-alive heartbeat)
+			print("Reconnecting SSE client...")
+			self:connectSSEClient()
+		end
 	end)
 
-	workspace.KillSwitch.Changed:Connect(function()
-		sse_client:Close()
-	end)
+	self.sseClient = sseClient
 
-	return sse_client
+	return sseClient
 end
 
-function TestsManager:handleSSEMessage(message: string)
+function TestsManager.handleSSEMessage(self: TestsManager, message: string)
+	print("received", message)
+
 	local event = string.match(message, "event:%s*(.-)%s*\n")
 	if event == "ping" or event == nil then
 		return
@@ -191,18 +240,33 @@ function TestsManager:handleSSEMessage(message: string)
 		self.testRbxmBufferOffsets[data.test_id] += buffer.len(data.chunk_buffer)
 	elseif event == "test_end" then
 		local outcome = self:runTest(data.test_id)
-		self:reportTestOutcome(data.test_id, outcome)
+		self.reportTestOutcome(data.test_id, outcome)
 
 		self.testRbxmBuffers[data.test_id] = nil
 		self.testRbxmBufferOffsets[data.test_id] = nil
+	elseif event == "shutdown" then
+		print("Server is shutting down")
+		self:stop()
 	else
 		print("unhandled event type:", event)
 	end
 end
 
-function TestsManager:start()
-	self:awaitHealthyServer()
+function TestsManager.start(self: TestsManager)
+	self.active = true
+	self.awaitHealthyServer()
 	self:connectSSEClient()
+end
+
+function TestsManager.stop(self: TestsManager)
+	self.active = false
+	if self.sseClient then
+		self.sseClient:Close()
+	end
+	for _, connection in self.sseClientConnections do
+		connection:Disconnect()
+	end
+	print("TestsManager stopped")
 end
 
 return TestsManager
