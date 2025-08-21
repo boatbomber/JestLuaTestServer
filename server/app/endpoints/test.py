@@ -5,6 +5,8 @@ import uuid
 from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -44,7 +46,7 @@ async def run_test(
         )
 
         try:
-            outcome = await asyncio.wait_for(result_future, timeout=30.0)
+            outcome = await asyncio.wait_for(result_future, timeout=settings.test_timeout)
             if outcome.get("success"):
                 return TestResponse(
                     test_id=test_id,
@@ -63,7 +65,7 @@ async def run_test(
             return TestResponse(
                 test_id=test_id,
                 status="timeout",
-                error="Test execution timed out after 30 seconds",
+                error=f"Test execution timed out after {settings.test_timeout} seconds",
             )
 
     except Exception as e:
