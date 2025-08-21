@@ -97,7 +97,18 @@ with open("tests.rbxm", "rb") as f:
 print(response.json())
 ```
 
-The `.rbxm` file should contain a Folder with your `.spec.lua` or `.test.lua` files.
+The `.rbxm` file should contain a Folder with your `.spec.lua`/`.test.lua` files and an optional `jest.config`.
+
+```
+[Folder] MyTestsModel
+├── [ModuleScript] foo.spec              # Jest test modules
+├── [ModuleScript] bar.spec
+│   └── [Folder] SomeNestedTests         # Supports nesting
+│       └── [ModuleScript] bar.spec
+├── [Folder] Utils                       # You can include non-test modules to use within your tests
+│       └── [ModuleScript] someUtil
+└── [ModuleScript] jest.config           # Optional. Default config matches "**/*.(spec|test)" and ignores Packages & DevPackages. (https://jsdotlua.github.io/jest-lua/configuration)
+```
 
 ### Test File Structure
 
