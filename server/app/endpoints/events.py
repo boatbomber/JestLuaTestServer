@@ -24,7 +24,7 @@ async def event_generator(request: Request) -> AsyncGenerator:
                 break
 
             try:
-                test_data = await asyncio.wait_for(request.app.state.test_queue.get(), timeout=5.0)
+                test_data = await asyncio.wait_for(request.app.state.test_queue.get(), timeout=15.0)
 
                 test_id = test_data["test_id"]
                 rbxm_data = test_data["data"]
@@ -55,13 +55,11 @@ async def event_generator(request: Request) -> AsyncGenerator:
                                     "t": "buffer",
                                     "base64": chunk,
                                 },
-                                "offset": i,
-                                "size": len(chunk),
                             }
                         ),
                     }
 
-                    await asyncio.sleep(0.01)
+                    await asyncio.sleep(1 / 60)
 
                 yield {
                     "event": "test_end",
@@ -73,10 +71,9 @@ async def event_generator(request: Request) -> AsyncGenerator:
                 }
 
             except TimeoutError:
-                yield {
-                    "event": "ping",
-                    "data": "keep-alive",
-                }
+                # Timed out while waiting for a test to enter the queue
+                # Just keep waiting until the server is shut down
+                continue
 
     except asyncio.CancelledError:
         logger.info("SSE connection cancelled")
