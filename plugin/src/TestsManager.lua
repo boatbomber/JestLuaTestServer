@@ -38,23 +38,34 @@ TestsManager.testRbxmBuffers = {} :: { [TestId]: buffer }
 TestsManager.testRbxmBufferOffsets = {} :: { [TestId]: number }
 
 function TestsManager:runTest(testId: TestId): SuccessfulTestResult | ErrorResult
-	local test = self:deserializeTest(testId)
+	local runSuccess, runResult = pcall(function()
+		local test = self:deserializeTest(testId)
 
-	local status, result = Jest.runCLI(script, runCLIOptions, { test }):awaitStatus()
+		local status, jestResult = Jest.runCLI(script, runCLIOptions, { test }):awaitStatus()
 
-	test:Destroy()
+		test:Destroy()
 
-	if status == "Rejected" then
+		if status == "Rejected" then
+			return {
+				success = false,
+				error = tostring(jestResult),
+			}
+		end
+
+		return {
+			success = true,
+			results = jestResult.results,
+		}
+	end)
+
+	if not runSuccess then
 		return {
 			success = false,
-			error = tostring(result),
+			error = "Failed to run test: " .. tostring(runResult),
 		}
 	end
 
-	return {
-		success = true,
-		results = result.results,
-	}
+	return runResult
 end
 
 function TestsManager:deserializeTest(testId: string): any
