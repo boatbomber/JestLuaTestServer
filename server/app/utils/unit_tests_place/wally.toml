@@ -1,0 +1,13 @@
+[package]
+name = "boatbomber/jestluatestserver-place"
+description = "Studio place for running tests with JestLuaTestServer"
+version = "0.1.0"
+license = "Apache 2.0"
+authors = ["Zack Williams <zack@boatbomber.com>"]
+realm = "shared"
+registry = "https://github.com/upliftgames/wally-index"
+private = true
+
+[dev-dependencies]
+Jest = "jsdotlua/jest@3.10.0"
+JestGlobals = "jsdotlua/jest-globals@3.10.0"

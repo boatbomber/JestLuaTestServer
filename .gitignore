@@ -1,0 +1,8 @@
+**/DevPackages/
+**/Packages/
+**/serverSettings.json
+
+**/*.rbxm
+**/*.rbxl
+
+**/__pycache__/

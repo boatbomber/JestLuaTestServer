@@ -1,0 +1,6 @@
+{
+    "name": "JestLuaTestServer-Plugin",
+    "tree": {
+        "$path": "src"
+    }
+}
