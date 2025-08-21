@@ -33,7 +33,8 @@ class StudioManager:
                 "DFFlagEnableHttpStreaming": "true",
                 "DFFlagDisableWebStreamClientInStudioScripts": "false",
                 "DFFlagEnableWebStreamClientInStudio": "true",
-                "DFIntWebStreamClientRequestTimeoutMs": "5000",
+                "DFFlagHttpServiceRequestTimeout": "true",
+                "DFIntWebStreamClientRequestTimeoutMs": "100000",
                 "FFlagEnableLoadModule": "true",
             }
 
