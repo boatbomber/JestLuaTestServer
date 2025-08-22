@@ -234,7 +234,7 @@ JestLuaTestServer/
 
 - **WebStreamClient Limitation**: Due to a current Roblox Studio bug, the plugin's `CreateWebStreamClient` is broken. As a workaround, the plugin installs itself to ServerStorage and must be manually started from the command bar instead:
   ```lua
-  require(game.ServerStorage.TestsManager):start()
+  require(game.ServerStorage.TestsManager).init()
   ```
 
 ## License
