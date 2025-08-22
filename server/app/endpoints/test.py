@@ -1,13 +1,23 @@
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
 
-from app.config import settings
+from app.config_manager import config as app_config
+from app.dependencies import (
+    AcceptingTestsDep,
+    ActiveTestsDep,
+    RateLimiterDep,
+    TestQueueDep,
+)
 
 logger = logging.getLogger(__name__)
+
+# rbxm file header signature for validation
+RBXM_SIGNATURE = b"<roblox!"
 
 router = APIRouter()
 
@@ -22,23 +32,64 @@ class TestResponse(BaseModel):
 @router.post("/test", response_model=TestResponse)
 async def run_test(
     request: Request,
-    rbxm_data: bytes = Body(..., media_type="application/octet-stream"),
+    accepting_tests: AcceptingTestsDep,
+    rate_limiter: RateLimiterDep,
+    active_tests: ActiveTestsDep,
+    test_queue: TestQueueDep,
+    rbxm_data: bytes = Body(b"", media_type="application/octet-stream"),
 ) -> TestResponse:
     test_id = str(uuid.uuid4())
 
+    # Check if accepting tests (for graceful shutdown)
+    if not accepting_tests:
+        raise HTTPException(
+            status_code=503, detail="Server is shutting down, not accepting new tests"
+        )
+
+    # Rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    now = datetime.now()
+    minute_ago = now - timedelta(minutes=1)
+
+    # Clean old requests and check rate limit
+    rate_limiter[client_ip] = [ts for ts in rate_limiter[client_ip] if ts > minute_ago]
+
+    if len(rate_limiter[client_ip]) >= app_config.max_requests_per_minute:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Maximum {app_config.max_requests_per_minute} requests per minute",
+        )
+
+    rate_limiter[client_ip].append(now)
+
+    # Input validation
     if not rbxm_data:
         raise HTTPException(status_code=400, detail="No rbxm data provided")
 
+    # Size limit check
+    if len(rbxm_data) > app_config.max_rbxm_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"RBXM file too large. Maximum size is {app_config.max_rbxm_size // (1024 * 1024)}MB",
+        )
+
+    # Validate rbxm file header
+    if not rbxm_data.startswith(RBXM_SIGNATURE):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid RBXM file format. File must be a valid Roblox model file",
+        )
+
     try:
-        logger.info(f"Starting test {test_id}, rbxm size: {len(rbxm_data)} bytes")
+        logger.info(f"Received test {test_id}, rbxm size: {len(rbxm_data)} bytes")
 
         result_future = asyncio.Future()
-        request.app.state.active_tests[test_id] = {
+        active_tests[test_id] = {
             "data": rbxm_data,
             "future": result_future,
         }
 
-        await request.app.state.test_queue.put(
+        await test_queue.put(
             {
                 "test_id": test_id,
                 "data": rbxm_data,
@@ -46,7 +97,8 @@ async def run_test(
         )
 
         try:
-            outcome = await asyncio.wait_for(result_future, timeout=settings.test_timeout)
+            outcome = await asyncio.wait_for(result_future, timeout=app_config.test_timeout)
+            logger.info(f"Responding with outcome for test {test_id}")
             if outcome.get("success"):
                 return TestResponse(
                     test_id=test_id,
@@ -65,7 +117,7 @@ async def run_test(
             return TestResponse(
                 test_id=test_id,
                 status="timeout",
-                error=f"Test execution timed out after {settings.test_timeout} seconds",
+                error=f"Test execution timed out after {app_config.test_timeout} seconds",
             )
 
     except Exception as e:
@@ -76,4 +128,4 @@ async def run_test(
             error=str(e),
         )
     finally:
-        request.app.state.active_tests.pop(test_id, None)
+        active_tests.pop(test_id, None)

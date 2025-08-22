@@ -3,10 +3,10 @@ import sys
 
 import uvicorn
 
-from app.config import settings
+from app.config_manager import config as app_config
 
 logging.basicConfig(
-    level=getattr(logging, settings.log_level),
+    level=getattr(logging, app_config.log_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
@@ -15,11 +15,11 @@ def main():
     try:
         config = uvicorn.Config(
             "app.main:app",
-            host=settings.host,
-            port=settings.port,
-            timeout_graceful_shutdown=5,
+            host=app_config.host,
+            port=app_config.port,
+            timeout_graceful_shutdown=app_config.shutdown_timeout,
             reload=False,
-            log_level=settings.log_level.lower(),
+            log_level=app_config.log_level.lower(),
         )
         server = uvicorn.Server(config)
         server.run()

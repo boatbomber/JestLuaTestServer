@@ -13,8 +13,10 @@ async def submit_results(request: Request):
     test_id = body.get("test_id")
     outcome = body.get("outcome")
 
+    logger.info(f"Plugin posted outcome for test {test_id}")
+
     if test_id not in request.app.state.active_tests:
-        logger.warning(f"Received results for unknown test {test_id}")
+        logger.warning(f"Received outcome for unknown test {test_id}")
         raise HTTPException(status_code=404, detail=f"Test {test_id} not found")
 
     test_info = request.app.state.active_tests.get(test_id)

@@ -6,7 +6,7 @@ if true then
 	)
 
 	script.Parent.TestsManager:Clone().Parent = game.ServerStorage
-	script.Parent.serverSettings:Clone().Parent = game.ServerStorage
+	script.Parent.serverConfig:Clone().Parent = game.ServerStorage
 
 	return nil
 end

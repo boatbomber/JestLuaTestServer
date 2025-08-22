@@ -1,6 +1,6 @@
 **/DevPackages/
 **/Packages/
-**/serverSettings.json
+**/serverConfig.json
 
 **/*.rbxm
 **/*.rbxl

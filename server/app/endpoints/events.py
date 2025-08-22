@@ -7,11 +7,20 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
-from app.config import settings
+from app.config_manager import config as app_config
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def _chunk_data_async(data: str, chunk_size: int):
+    """Async generator for chunking data with backpressure support"""
+    for i in range(0, len(data), chunk_size):
+        yield data[i : i + chunk_size]
+        # Allow other tasks to run
+        if i % (chunk_size * 10) == 0:  # Yield control every 10 chunks
+            await asyncio.sleep(0)
 
 
 async def event_generator(request: Request) -> AsyncGenerator:
@@ -50,7 +59,8 @@ async def event_generator(request: Request) -> AsyncGenerator:
                     ),
                 }
 
-                for i in range(0, len(b64_rbxm), settings.chunk_size):
+                # Use async generator for better backpressure handling
+                async for chunk in _chunk_data_async(b64_rbxm, app_config.chunk_size):
                     # Check for disconnection before sending each chunk
                     if await request.is_disconnected():
                         logger.warning(
@@ -59,8 +69,6 @@ async def event_generator(request: Request) -> AsyncGenerator:
                         await request.app.state.test_queue.put(current_test_data)
                         current_test_data = None
                         return
-
-                    chunk = b64_rbxm[i : i + settings.chunk_size]
 
                     yield {
                         "event": "test_chunk",
@@ -75,8 +83,6 @@ async def event_generator(request: Request) -> AsyncGenerator:
                             }
                         ),
                     }
-
-                    await asyncio.sleep(1 / 60)
 
                 yield {
                     "event": "test_end",
