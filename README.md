@@ -20,6 +20,7 @@ The system uses Server-Sent Events (SSE) for real-time communication between the
 - **Automatic Setup**: Server handles plugin installation and Studio configuration
 - **Jest Integration**: Full Jest test runner with all standard features
 - **Configurable Timeouts**: Customizable test execution timeouts
+- **Secure Authentication**: Dual authentication system for remote workers and plugin
 
 ## Architecture
 
@@ -30,6 +31,15 @@ flowchart LR
     STUDIO -->|POST /_results| SERVER
     SERVER -->|JSON results| CLIENT
 ```
+
+## Security & Authentication
+
+JestLuaTestServer uses a dual authentication system:
+
+1. **API Keys** for remote workers to access the `/test` endpoint
+2. **Session Tokens** for the plugin to access internal endpoints (`/_events`, `/_results`)
+
+See [AUTHENTICATION.md](AUTHENTICATION.md) for detailed setup instructions.
 
 ## Installation
 
@@ -75,14 +85,28 @@ uv run python run.py
 
 The server will:
 1. Configure required Studio FFlags
-2. Install the Roblox Studio plugin
+2. Install the Roblox Studio plugin with session token
 3. Build the test place with Jest dependencies
 4. Launch Roblox Studio
-5. Listen for test requests on the configured port
+5. Load API keys from `api_keys.txt` (if authentication is enabled)
+6. Listen for test requests on the configured port
+
+### Setting Up Authentication
+
+1. Create `server/api_keys.txt` file with your API keys (one per line):
+   ```
+   worker1_key_abc123xyz789
+   worker2_key_def456uvw012
+   ```
+
+2. Generate secure API keys:
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
 
 ### Running Tests
 
-Submit tests by sending a POST request to `/test` with a `.rbxm` file containing your test modules:
+Submit tests by sending a POST request to `/test` with a `.rbxm` file and API key:
 
 ```python
 import requests
@@ -91,7 +115,10 @@ with open("tests.rbxm", "rb") as f:
     response = requests.post(
         "http://localhost:8325/test",
         data=f.read(),
-        headers={"Content-Type": "application/octet-stream"}
+        headers={
+            "Content-Type": "application/octet-stream",
+            "X-API-Key": "your-api-key-here"
+        }
     )
     
 print(response.json())
@@ -145,7 +172,9 @@ Execute Jest tests from an uploaded `.rbxm` file.
 
 **Request:**
 - Body: Binary `.rbxm` data
-- Content-Type: `application/octet-stream`
+- Headers:
+  - `Content-Type: application/octet-stream`
+  - `X-API-Key: your-api-key` (required if authentication is enabled)
 
 **Response:**
 ```json
@@ -212,11 +241,15 @@ JestLuaTestServer/
 │   │   ├── main.py                 # FastAPI application
 │   │   ├── config_manager.py       # Configuration settings
 │   │   ├── dependencies.py         # Dependency injection
+│   │   ├── auth.py                 # Authentication middleware
+│   │   ├── api_keys.py             # API key management
 │   │   ├── endpoints/              # API endpoints
 │   │   └── utils/                  # Utility modules
 │   │       ├── fflag_manager.py    # FFlag management
 │   │       ├── plugin_manager.py   # Plugin management
 │   │       └── studio_manager.py   # Studio management
+│   ├── api_keys.txt                # API keys file (gitignored)
+│   ├── api_keys.txt.example        # Example API keys file
 │   ├── pyproject.toml              # Python project configuration
 │   └── run.py                      # Server entry point
 ├── plugin/                         # Roblox Studio plugin
@@ -226,6 +259,7 @@ JestLuaTestServer/
 │   │       ├── init.lua            # Main test manager
 │   │       └── Logger.lua          # Logging utility
 │   └── default.project.json        # Rojo project configuration
+├── AUTHENTICATION.md               # Authentication documentation
 ├── rokit.toml                      # Roblox toolchain configuration
 └── selene.toml                     # Lua linter configuration
 ```

@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
+from app.auth import InternalAuthDep
 from app.config_manager import config as app_config
 
 logger = logging.getLogger(__name__)
@@ -118,5 +119,5 @@ async def event_generator(request: Request) -> AsyncGenerator:
 
 
 @router.get("/_events")
-async def events_stream(request: Request):
+async def events_stream(request: Request, _auth: InternalAuthDep):
     return EventSourceResponse(event_generator(request))

@@ -5,6 +5,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from app.auth import internal_auth
 from app.config_manager import config as app_config
 
 logger = logging.getLogger(__name__)
@@ -90,8 +91,17 @@ class PluginManager:
     def _write_config_file(self) -> Path:
         """Write temporary server configuration file for plugin"""
         config_file = self.plugin_source / "src" / self.CONFIG_FILE_NAME
+
+        # Create config dict
+        config_data = app_config.model_dump()
+
+        # Add bearer token to config if authentication is enabled
+        if app_config.enable_auth:
+            config_data["bearer_token"] = internal_auth.get_session_token()
+            logger.debug("Added bearer token to plugin config")
+
         config_file.write_text(
-            json.dumps(app_config.model_dump()),
+            json.dumps(config_data),
             encoding="utf-8",
             newline="\n",
         )

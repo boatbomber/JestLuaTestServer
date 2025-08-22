@@ -15,6 +15,9 @@ class BaseConfig(BaseSettings):
     chunk_size: int = 8192
     log_level: str = "INFO"
 
+    # Authentication
+    enable_auth: bool = True
+
     # Rate limiting
     max_requests_per_minute: int = 10
     max_rbxm_size: int = 50 * 1024 * 1024  # 50MB
@@ -62,6 +65,8 @@ class TestingConfig(BaseConfig):
     shutdown_timeout: int = 5
     # Use different port for tests to avoid conflicts
     port: int = 8326
+    # Disable auth for testing
+    enable_auth: bool = False
 
 
 def get_config(env: Literal["development", "production", "test"] | None = None) -> BaseConfig:

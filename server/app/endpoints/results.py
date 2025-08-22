@@ -2,13 +2,15 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.auth import InternalAuthDep
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 @router.post("/_results")
-async def submit_results(request: Request):
+async def submit_results(request: Request, _auth: InternalAuthDep):
     body = await request.json()
     test_id = body.get("test_id")
     outcome = body.get("outcome")

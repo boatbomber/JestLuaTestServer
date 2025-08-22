@@ -6,3 +6,7 @@
 **/*.rbxl
 
 **/__pycache__/
+
+# API keys file for remote workers
+api_keys.txt
+server/api_keys.txt

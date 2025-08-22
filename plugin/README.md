@@ -20,7 +20,7 @@ The plugin consists of these main components:
 ### 1. Initialization
 When the plugin starts, it:
 - Waits for the server to be healthy by polling `/health`
-- Establishes an SSE connection to `/_events` endpoint
+- Establishes an SSE connection to `/_events` endpoint with session token authentication
 - Begins listening for test execution requests
 
 ### 2. Test Reception
@@ -38,7 +38,7 @@ When a complete test is received:
 
 ### 4. Result Reporting
 After test execution:
-- Sends results back to server via POST to `/_results`
+- Sends results back to server via POST to `/_results` with session token authentication
 - Includes test ID and outcome (success/failure with details)
 
 ## Configuration
@@ -49,6 +49,7 @@ The plugin reads its configuration from `serverConfig.json`, which is automatica
 - `port`: Server port (default: `8325`)
 - `test_timeout`: Maximum test execution time in milliseconds
 - `log_level`: The verbosity of logging
+- `bearer_token`: Session-specific authentication token (automatically injected)
 
 ## Jest Configuration
 
@@ -74,9 +75,10 @@ Default Jest options used by the plugin:
 The plugin is automatically installed by the server when it starts:
 
 1. Server reads plugin source from this directory
-2. Injects current server settings into `serverConfig.json`
-3. Builds the plugin using Rojo
-4. Installs to Roblox Studio's plugin directory
+2. Generates a unique session token for internal endpoint authentication
+3. Injects current server settings and session token into `serverConfig.json`
+4. Builds the plugin using Rojo
+5. Installs to Roblox Studio's plugin directory
 
 ## Manual Usage (Workaround)
 

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api_keys import api_key_manager
 from app.config_manager import config as app_config
 from app.dependencies import StudioManagerDep
 from app.endpoints import events, results, test
@@ -17,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize authentication
+    if app_config.enable_auth:
+        api_key_manager.load()
+    else:
+        logger.warning("Authentication is disabled. All endpoints are unprotected.")
+
     async with managed_studio() as studio_manager:
         app.state.studio_manager = studio_manager
         app.state.test_queue = asyncio.Queue()

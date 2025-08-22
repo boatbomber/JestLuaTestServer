@@ -24,6 +24,7 @@ type ServerConfig = {
 	port: number,
 	test_timeout: number,
 	log_level: string,
+	bearer_token: string?,
 }
 
 local TestsManager = {}
@@ -162,6 +163,7 @@ function TestsManager.reportTestOutcome(self: TestsManager, testId: TestId, outc
 		Method = "POST" :: "POST",
 		Headers = {
 			["Content-Type"] = "application/json",
+			["Authorization"] = `Bearer {self.serverConfig.bearer_token}`,
 		},
 		Body = HttpService:JSONEncode({
 			test_id = testId,
@@ -226,7 +228,8 @@ function TestsManager.connectSSEClient(self: TestsManager): WebStreamClient
 		return HttpService:CreateWebStreamClient(Enum.WebStreamClientType.SSE, {
 			Url = `{self.serverUrl}/_events`,
 			Headers = {
-				["content-type"] = "application/json",
+				["Content-Type"] = "text/event-stream",
+				["Authorization"] = `Bearer {self.serverConfig.bearer_token}`,
 			},
 			Method = "GET",
 		})

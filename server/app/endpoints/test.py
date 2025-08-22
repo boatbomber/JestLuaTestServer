@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
 
+from app.auth import ExternalAuthDep
 from app.config_manager import config as app_config
 from app.dependencies import (
     AcceptingTestsDep,
@@ -36,6 +37,7 @@ async def run_test(
     rate_limiter: RateLimiterDep,
     active_tests: ActiveTestsDep,
     test_queue: TestQueueDep,
+    _auth: ExternalAuthDep,
     rbxm_data: bytes = Body(b"", media_type="application/octet-stream"),
 ) -> TestResponse:
     test_id = str(uuid.uuid4())

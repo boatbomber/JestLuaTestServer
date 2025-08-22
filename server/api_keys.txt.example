@@ -1,0 +1,11 @@
+# API Keys for Remote Workers
+# Add one API key per line
+# Lines starting with # are ignored
+# 
+# Generate secure keys using:
+# python -c "import secrets; print(secrets.token_urlsafe(32))"
+#
+# Example keys (DO NOT USE IN PRODUCTION):
+# worker1_key_abc123xyz789
+# worker2_key_def456uvw012
+# worker3_key_ghi789rst345

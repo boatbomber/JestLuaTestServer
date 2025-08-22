@@ -6,32 +6,6 @@ FastAPI-based server that manages Roblox Studio instances and coordinates Jest L
 
 The server component of JestLuaTestServer provides a REST API for submitting tests and manages the lifecycle of Roblox Studio instances. It handles plugin installation, Studio configuration, test distribution via Server-Sent Events (SSE), and result collection.
 
-## Architecture
-
-The server follows a modular architecture:
-
-```
-server/
-├── app/
-│   ├── main.py                 # FastAPI application and lifecycle management
-│   ├── config_manager.py       # Configuration management via Pydantic
-│   ├── dependencies.py         # FastAPI dependency injection
-│   ├── endpoints/              # API endpoint implementations
-│   │   ├── test.py             # Main test submission endpoint
-│   │   ├── events.py           # SSE endpoint for plugin communication
-│   │   └── results.py          # Result collection endpoint
-│   └── utils/                  # Utility modules
-│       ├── fflag_manager.py    # FFlag configuration management
-│       ├── plugin_manager.py   # Plugin installation/management
-│       └── studio_manager.py   # Studio process management
-├── debugging/                  # Development and debugging tools
-│   ├── test_client.py          # Sample client for testing
-│   └── tests.rbxm              # Sample test file
-├── pyproject.toml              # Python project configuration
-├── uv.lock                     # Locked dependencies
-└── run.py                      # Server entry point
-```
-
 ## Features
 
 - **Automatic Studio Management**: Launches and manages Roblox Studio processes
@@ -43,6 +17,7 @@ server/
 - **Error Recovery**: Graceful handling of Studio crashes and network failures
 - **Health Monitoring**: Continuous monitoring of Studio process health
 - **Configurable Timeouts**: Per-test and global timeout configuration
+- **Authentication System**: Dual authentication with API keys for remote workers and session tokens for plugin
 
 ## Installation
 
@@ -74,6 +49,20 @@ server/
 
 ## Usage
 
+### Setting Up Authentication
+
+1. **Create API keys file** (`server/api_keys.txt`):
+   ```
+   # Add one API key per line
+   worker1_key_abc123xyz789
+   worker2_key_def456uvw012
+   ```
+
+2. **Generate secure API keys**:
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
 ### Starting the Server
 
 **Using the run script** (recommended):
@@ -87,20 +76,27 @@ uv run python run.py
 JEST_TEST_SERVER_PORT=8080 JEST_TEST_SERVER_LOG_LEVEL=DEBUG uv run python run.py
 ```
 
+**Disable authentication** (for local development only):
+```bash
+JEST_TEST_SERVER_ENABLE_AUTH=false uv run python run.py
+```
+
 ### Server Startup Process
 
 When the server starts, it:
 
-1. **Configures Studio**: Sets required FFlags in Studio's ClientSettings via FFlagManager
-2. **Installs the Plugin**: Builds and installs the Roblox Studio plugin via PluginManager
-3. **Builds Test Place**: Creates a Roblox place file with Jest dependencies
-4. **Launches Studio**: Starts Roblox Studio with the test place via StudioManager
-5. **Establishes Connection**: Waits for the plugin to connect via SSE
-6. **Ready for Tests**: Begins accepting test submissions
+1. **Loads API Keys**: Reads API keys from `api_keys.txt` for remote worker authentication
+2. **Generates Session Token**: Creates a unique token for plugin internal endpoints
+3. **Configures Studio**: Sets required FFlags in Studio's ClientSettings via FFlagManager
+4. **Installs the Plugin**: Builds and installs the Roblox Studio plugin with embedded session token
+5. **Builds Test Place**: Creates a Roblox place file with Jest dependencies
+6. **Launches Studio**: Starts Roblox Studio with the test place via StudioManager
+7. **Establishes Connection**: Waits for the plugin to connect via SSE
+8. **Ready for Tests**: Begins accepting test submissions
 
 ### Submitting Tests
 
-Submit test rbxm data to the `/test` endpoint:
+Submit test rbxm data to the `/test` endpoint with API key authentication:
 ```python
 import requests
 
@@ -108,7 +104,10 @@ with open("tests.rbxm", "rb") as f:
     response = requests.post(
         "http://localhost:8325/test",
         data=f.read(),
-        headers={"Content-Type": "application/octet-stream"}
+        headers={
+            "Content-Type": "application/octet-stream",
+            "X-API-Key": "your-api-key-here"  # Required for authentication
+        }
     )
     
 result = response.json()
@@ -125,11 +124,13 @@ else:
 ### Endpoints
 
 #### `POST /test`
-Submit a test for execution.
+Submit a test for execution. Requires API key authentication.
 
 **Request:**
 - Method: `POST`
-- Content-Type: `application/octet-stream`
+- Headers:
+  - `Content-Type: application/octet-stream`
+  - `X-API-Key: your-api-key` (required)
 - Body: Binary `.rbxm` file containing test modules
 
 **Response (200 OK):**
@@ -180,7 +181,7 @@ Check server and Studio status.
 ```
 
 #### `GET /_events` (Internal)
-Server-Sent Events stream for plugin communication.
+Server-Sent Events stream for plugin communication. Protected by session token.
 
 **Event Types:**
 - `ping`: Keepalive message
@@ -189,7 +190,7 @@ Server-Sent Events stream for plugin communication.
 - `test_end`: Complete test transmission
 
 #### `POST /_results` (Internal)
-Receive test results from plugin.
+Receive test results from plugin. Protected by session token.
 
 **Request:**
 ```json
@@ -217,6 +218,7 @@ All environment variables use the prefix `JEST_TEST_SERVER_`:
 | `JEST_TEST_SERVER_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `JEST_TEST_SERVER_CHUNK_SIZE` | `8192` | SSE chunk size for rbxm transfer (bytes) |
 | `JEST_TEST_SERVER_CORS_ORIGINS` | `["*"]` | Allowed CORS origins (JSON array) |
+| `JEST_TEST_SERVER_ENABLE_AUTH` | `true` | Enable authentication system |
 
 ### Configuration File
 
@@ -292,16 +294,20 @@ server/
 │   ├── main.py                 # FastAPI app and lifecycle
 │   ├── config_manager.py       # Settings management
 │   ├── dependencies.py         # Dependency injection
+│   ├── auth.py                 # Authentication middleware
+│   ├── api_keys.py             # API key management
 │   ├── endpoints/              # API endpoints
 │   │   ├── __init__.py
-│   │   ├── events.py           # SSE endpoint
-│   │   ├── results.py          # Results collection
-│   │   └── test.py             # Test submission
+│   │   ├── events.py           # SSE endpoint (session token)
+│   │   ├── results.py          # Results collection (session token)
+│   │   └── test.py             # Test submission (API key)
 │   └── utils/                  # Utilities
 │       ├── __init__.py
 │       ├── fflag_manager.py    # FFlag management
 │       ├── plugin_manager.py   # Plugin management
 │       └── studio_manager.py   # Studio management
+├── api_keys.txt                # API keys (gitignored)
+├── api_keys.txt.example        # Example API keys
 ├── pyproject.toml              # Project config
 ├── uv.lock                     # Locked deps
 └── run.py                      # Entry point
@@ -345,8 +351,18 @@ The server includes comprehensive error handling:
 
 ## Security Notes
 
+- **Dual Authentication System**:
+  - API keys protect the `/test` endpoint from unauthorized remote workers
+  - Session tokens protect internal endpoints (`/_events`, `/_results`) from external access
+- **API Keys Management**:
+  - Store in `api_keys.txt` (gitignored)
+  - One key per line, comments with `#` supported
+  - Generate secure keys with `secrets.token_urlsafe(32)`
+- **Session Tokens**:
+  - Automatically generated on server startup
+  - Injected into plugin configuration
+  - Valid only for current server session
 - Server binds to localhost by default
-- No authentication (intended for local development)
 - Test files are not persisted to disk
 - Studio runs with user privileges
 
