@@ -7,9 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config_manager import config as app_config
-from app.dependencies import PluginManagerDep, StudioManagerDep
+from app.dependencies import StudioManagerDep
 from app.endpoints import events, results, test
-from app.utils.plugin_manager import managed_plugin
 from app.utils.studio_manager import managed_studio
 
 logging.basicConfig(level=logging.INFO)
@@ -18,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with managed_plugin() as plugin_manager, managed_studio() as studio_manager:
-        app.state.plugin_manager = plugin_manager
+    async with managed_studio() as studio_manager:
         app.state.studio_manager = studio_manager
         app.state.test_queue = asyncio.Queue()
         app.state.result_queue = asyncio.Queue()
@@ -75,12 +73,8 @@ app.include_router(results.router)
 
 
 @app.get("/health")
-async def health_check(
-    studio_manager: StudioManagerDep,
-    plugin_manager: PluginManagerDep,
-):
-    return {
-        "status": "healthy",
-        "studio_running": studio_manager.is_running(),
-        "plugin_installed": plugin_manager.is_installed(),
-    }
+async def health_check(studio_manager: StudioManagerDep):
+    health_status = studio_manager.is_healthy()
+    all_healthy = all(health_status.values())
+
+    return {"status": "healthy" if all_healthy else "degraded", **health_status}

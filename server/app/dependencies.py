@@ -4,7 +4,6 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from app.utils.plugin_manager import PluginManager
 from app.utils.studio_manager import StudioManager
 
 
@@ -13,13 +12,6 @@ def get_studio_manager(request: Request) -> StudioManager:
     if not hasattr(request.app.state, "studio_manager"):
         raise RuntimeError("StudioManager not initialized")
     return request.app.state.studio_manager
-
-
-def get_plugin_manager(request: Request) -> PluginManager:
-    """Get PluginManager instance from app state"""
-    if not hasattr(request.app.state, "plugin_manager"):
-        raise RuntimeError("PluginManager not initialized")
-    return request.app.state.plugin_manager
 
 
 def get_test_queue(request: Request):
@@ -55,7 +47,6 @@ def get_accepting_tests(request: Request) -> bool:
 
 # Type annotations for dependency injection
 StudioManagerDep = Annotated[StudioManager, Depends(get_studio_manager)]
-PluginManagerDep = Annotated[PluginManager, Depends(get_plugin_manager)]
 TestQueueDep = Annotated[object, Depends(get_test_queue)]
 ActiveTestsDep = Annotated[dict, Depends(get_active_tests)]
 RateLimiterDep = Annotated[dict, Depends(get_rate_limiter)]
