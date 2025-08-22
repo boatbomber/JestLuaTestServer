@@ -16,15 +16,23 @@ router = APIRouter()
 
 async def event_generator(request: Request) -> AsyncGenerator:
     logger.info("Client connected to SSE endpoint")
+    current_test_data = None
 
     try:
         while True:
             if await request.is_disconnected():
                 logger.info("Client disconnected from SSE")
+                # Put test data back if we have any that wasn't fully sent
+                if current_test_data is not None:
+                    logger.warning(
+                        f"Client disconnected during test {current_test_data['test_id']}, re-queueing"
+                    )
+                    await request.app.state.test_queue.put(current_test_data)
                 break
 
             try:
                 test_data = await asyncio.wait_for(request.app.state.test_queue.get(), timeout=15.0)
+                current_test_data = test_data  # Track the current test being processed
 
                 test_id = test_data["test_id"]
                 rbxm_data = test_data["data"]
@@ -43,6 +51,15 @@ async def event_generator(request: Request) -> AsyncGenerator:
                 }
 
                 for i in range(0, len(b64_rbxm), settings.chunk_size):
+                    # Check for disconnection before sending each chunk
+                    if await request.is_disconnected():
+                        logger.warning(
+                            f"Client disconnected during chunk streaming for test {test_id}, re-queueing"
+                        )
+                        await request.app.state.test_queue.put(current_test_data)
+                        current_test_data = None
+                        return
+
                     chunk = b64_rbxm[i : i + settings.chunk_size]
 
                     yield {
@@ -70,6 +87,9 @@ async def event_generator(request: Request) -> AsyncGenerator:
                     ),
                 }
 
+                # Successfully sent all data, clear the current test
+                current_test_data = None
+
             except TimeoutError:
                 # Timed out while waiting for a test to enter the queue
                 # Just keep waiting until the server is shut down
@@ -77,9 +97,17 @@ async def event_generator(request: Request) -> AsyncGenerator:
 
     except asyncio.CancelledError:
         logger.info("SSE connection cancelled")
+        # Put test data back if we have any that wasn't fully sent
+        if current_test_data is not None:
+            logger.warning(f"SSE cancelled during test {current_test_data['test_id']}, re-queueing")
+            await request.app.state.test_queue.put(current_test_data)
         raise
     except Exception as e:
         logger.error(f"Error in SSE stream: {e}")
+        # Put test data back if we have any that wasn't fully sent
+        if current_test_data is not None:
+            logger.warning(f"Error during test {current_test_data['test_id']}: {e}, re-queueing")
+            await request.app.state.test_queue.put(current_test_data)
         raise
 
 
