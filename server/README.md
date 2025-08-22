@@ -14,20 +14,22 @@ The server follows a modular architecture:
 server/
 ├── app/
 │   ├── main.py                 # FastAPI application and lifecycle management
-│   ├── config.py               # Configuration via Pydantic settings
+│   ├── config_manager.py       # Configuration management via Pydantic
+│   ├── dependencies.py         # FastAPI dependency injection
 │   ├── endpoints/              # API endpoint implementations
 │   │   ├── test.py             # Main test submission endpoint
 │   │   ├── events.py           # SSE endpoint for plugin communication
 │   │   └── results.py          # Result collection endpoint
 │   └── utils/                  # Utility modules
+│       ├── fflag_manager.py    # FFlag configuration management
 │       ├── plugin_manager.py   # Plugin installation/management
 │       └── studio_manager.py   # Studio process management
-├── debugging/                 # Development and debugging tools
-│   ├── test_client.py         # Sample client for testing
-│   └── tests.rbxm             # Sample test file
-├── pyproject.toml             # Python project configuration
-├── uv.lock                    # Locked dependencies
-└── run.py                     # Server entry point
+├── debugging/                  # Development and debugging tools
+│   ├── test_client.py          # Sample client for testing
+│   └── tests.rbxm              # Sample test file
+├── pyproject.toml              # Python project configuration
+├── uv.lock                     # Locked dependencies
+└── run.py                      # Server entry point
 ```
 
 ## Features
@@ -89,10 +91,10 @@ JEST_TEST_SERVER_PORT=8080 JEST_TEST_SERVER_LOG_LEVEL=DEBUG uv run python run.py
 
 When the server starts, it:
 
-1. **Installs the Plugin**: Builds and installs the Roblox Studio plugin to the plugins directory
-2. **Configures Studio**: Sets required FFlags in Studio's ClientSettings
+1. **Configures Studio**: Sets required FFlags in Studio's ClientSettings via FFlagManager
+2. **Installs the Plugin**: Builds and installs the Roblox Studio plugin via PluginManager
 3. **Builds Test Place**: Creates a Roblox place file with Jest dependencies
-4. **Launches Studio**: Starts Roblox Studio with the test place
+4. **Launches Studio**: Starts Roblox Studio with the test place via StudioManager
 5. **Establishes Connection**: Waits for the plugin to connect via SSE
 6. **Ready for Tests**: Begins accepting test submissions
 
@@ -171,7 +173,9 @@ Check server and Studio status.
 {
   "status": "healthy",
   "studio_running": true,
-  "plugin_installed": true
+  "plugin_installed": true,
+  "fflags_applied": true,
+  "placefile_built": true
 }
 ```
 
@@ -209,8 +213,10 @@ All environment variables use the prefix `JEST_TEST_SERVER_`:
 | `JEST_TEST_SERVER_HOST` | `127.0.0.1` | Server bind address |
 | `JEST_TEST_SERVER_PORT` | `8325` | Server port |
 | `JEST_TEST_SERVER_TEST_TIMEOUT` | `30` | Test execution timeout (seconds) |
+| `JEST_TEST_SERVER_SHUTDOWN_TIMEOUT` | `10` | Graceful shutdown timeout (seconds) |
 | `JEST_TEST_SERVER_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `JEST_TEST_SERVER_CHUNK_SIZE` | `8192` | SSE chunk size for rbxm transfer (bytes) |
+| `JEST_TEST_SERVER_CORS_ORIGINS` | `["*"]` | Allowed CORS origins (JSON array) |
 
 ### Configuration File
 
@@ -231,12 +237,21 @@ The server automatically configures these FFlags in `ClientSettings/ClientAppSet
   "DFFlagEnableHttpStreaming": "true",
   "DFFlagDisableWebStreamClientInStudioScripts": "false",
   "DFFlagEnableWebStreamClientInStudio": "true",
-  "DFIntWebStreamClientRequestTimeoutMs": "5000",
+  "DFFlagHttpServiceRequestTimeout": "true",
+  "DFIntWebStreamClientRequestTimeoutMs": "100000",
   "FFlagEnableLoadModule": "true"
 }
 ```
 
 ## Components
+
+### FFlagManager
+
+Manages Roblox Studio FFlag configuration:
+- Applies required FFlags for Jest and SSE streaming
+- Backs up existing FFlag configuration
+- Restores original flags on shutdown
+- Provides context manager for automatic cleanup
 
 ### PluginManager
 
@@ -245,15 +260,17 @@ Handles plugin lifecycle:
 - Injects server configuration
 - Installs to Studio plugins directory
 - Manages plugin updates and removal
+- Provides context manager for automatic cleanup
 
 ### StudioManager
 
 Manages Roblox Studio process:
-- Locates Studio installation
-- Configures FFlags
+- Locates Studio installation via registry and filesystem
+- Coordinates FFlagManager and PluginManager
 - Builds test place with dependencies
 - Launches and monitors Studio process
 - Handles graceful shutdown
+- Provides unified health checking across all components
 
 ### Test Queue System
 
@@ -270,22 +287,24 @@ Manages test execution flow:
 
 ```
 server/
-├── app/                   # Application code
+├── app/                        # Application code
 │   ├── __init__.py
-│   ├── main.py            # FastAPI app and lifecycle
-│   ├── config.py          # Settings management
-│   ├── endpoints/         # API endpoints
+│   ├── main.py                 # FastAPI app and lifecycle
+│   ├── config_manager.py       # Settings management
+│   ├── dependencies.py         # Dependency injection
+│   ├── endpoints/              # API endpoints
 │   │   ├── __init__.py
-│   │   ├── events.py      # SSE endpoint
-│   │   ├── results.py     # Results collection
-│   │   └── test.py        # Test submission
-│   └── utils/             # Utilities
+│   │   ├── events.py           # SSE endpoint
+│   │   ├── results.py          # Results collection
+│   │   └── test.py             # Test submission
+│   └── utils/                  # Utilities
 │       ├── __init__.py
-│       ├── plugin_manager.py
-│       └── studio_manager.py
-├── pyproject.toml         # Project config
-├── uv.lock                # Locked deps
-└── run.py                 # Entry point
+│       ├── fflag_manager.py    # FFlag management
+│       ├── plugin_manager.py   # Plugin management
+│       └── studio_manager.py   # Studio management
+├── pyproject.toml              # Project config
+├── uv.lock                     # Locked deps
+└── run.py                      # Entry point
 ```
 
 ### Debugging

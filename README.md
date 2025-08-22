@@ -74,11 +74,11 @@ uv run python run.py
 ```
 
 The server will:
-1. Install the Roblox Studio plugin
-2. Configure required Studio FFlags
+1. Configure required Studio FFlags
+2. Install the Roblox Studio plugin
 3. Build the test place with Jest dependencies
 4. Launch Roblox Studio
-5. Listen for /test requests
+5. Listen for test requests on the configured port
 
 ### Running Tests
 
@@ -167,7 +167,9 @@ Check server and Studio status.
 {
   "status": "healthy",
   "studio_running": true,
-  "plugin_installed": true
+  "plugin_installed": true,
+  "fflags_applied": true,
+  "placefile_built": true
 }
 ```
 
@@ -186,8 +188,10 @@ All environment variables should be prefixed with `JEST_TEST_SERVER_`:
 - `JEST_TEST_SERVER_HOST`: Server host (default: `127.0.0.1`)
 - `JEST_TEST_SERVER_PORT`: Server port (default: `8325`)
 - `JEST_TEST_SERVER_TEST_TIMEOUT`: Test execution timeout in seconds (default: `30`)
+- `JEST_TEST_SERVER_SHUTDOWN_TIMEOUT`: Graceful shutdown timeout in seconds (default: `10`)
 - `JEST_TEST_SERVER_LOG_LEVEL`: Logging level (default: `INFO`)
 - `JEST_TEST_SERVER_CHUNK_SIZE`: SSE chunk size for rbxm transfer (default: `8192`)
+- `JEST_TEST_SERVER_CORS_ORIGINS`: Allowed CORS origins as JSON array (default: `["*"]`)
 
 ### Studio FFlags
 
@@ -195,28 +199,35 @@ The server automatically configures these Studio FFlags:
 - `DFFlagEnableHttpStreaming`: Enables HTTP streaming support
 - `DFFlagDisableWebStreamClientInStudioScripts`: Allows WebStreamClient in plugins
 - `DFFlagEnableWebStreamClientInStudio`: Enables WebStreamClient API
-- `DFIntWebStreamClientRequestTimeoutMs`: Sets request timeout (5000ms)
+- `DFFlagHttpServiceRequestTimeout`: Enables HTTP request timeout handling
+- `DFIntWebStreamClientRequestTimeoutMs`: Sets request timeout (100000ms)
 - `FFlagEnableLoadModule`: Enables module loading for Jest
 
 ## Project Structure
 
 ```
 JestLuaTestServer/
-├── server/                 # Python server application
+├── server/                         # Python server application
 │   ├── app/
-│   │   ├── main.py        # FastAPI application
-│   │   ├── config.py      # Configuration settings
-│   │   ├── endpoints/     # API endpoints
-│   │   └── utils/         # Utility modules
-│   ├── pyproject.toml     # Python project configuration
-│   └── run.py             # Server entry point
-├── plugin/                # Roblox Studio plugin
+│   │   ├── main.py                 # FastAPI application
+│   │   ├── config_manager.py       # Configuration settings
+│   │   ├── dependencies.py         # Dependency injection
+│   │   ├── endpoints/              # API endpoints
+│   │   └── utils/                  # Utility modules
+│   │       ├── fflag_manager.py    # FFlag management
+│   │       ├── plugin_manager.py   # Plugin management
+│   │       └── studio_manager.py   # Studio management
+│   ├── pyproject.toml              # Python project configuration
+│   └── run.py                      # Server entry point
+├── plugin/                         # Roblox Studio plugin
 │   ├── src/
-│   │   ├── Main.server.lua      # Plugin entry point
-│   │   └── TestsManager.lua     # Test execution manager
-│   └── default.project.json     # Rojo project configuration
-├── rokit.toml            # Roblox toolchain configuration
-└── selene.toml           # Lua linter configuration
+│   │   ├── Main.server.lua         # Plugin entry point
+│   │   └── TestsManager/           # Test execution module
+│   │       ├── init.lua            # Main test manager
+│   │       └── Logger.lua          # Logging utility
+│   └── default.project.json        # Rojo project configuration
+├── rokit.toml                      # Roblox toolchain configuration
+└── selene.toml                     # Lua linter configuration
 ```
 
 ## Known Issues

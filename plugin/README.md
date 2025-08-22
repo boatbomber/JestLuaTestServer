@@ -8,10 +8,12 @@ This plugin runs inside Roblox Studio and acts as the test execution engine for 
 
 ## Architecture
 
-The plugin consists of two main components:
+The plugin consists of these main components:
 
 1. **Main.server.lua**: Entry point that handles plugin initialization
-2. **TestsManager.lua**: Core test execution manager that handles SSE communication, test deserialization, and result reporting
+2. **TestsManager/**: Core test execution module
+   - **init.lua**: Main test execution manager that handles SSE communication, test deserialization, and result reporting
+   - **Logger.lua**: Logging utility for debug output
 
 ## How It Works
 
@@ -99,7 +101,9 @@ rojo build -o plugin.rbxm
 plugin/
 ├── src/
 │   ├── Main.server.lua      # Plugin entry point
-│   ├── TestsManager.lua     # Test execution manager
+│   ├── TestsManager/        # Test execution module
+│   │   ├── init.lua         # Main test manager
+│   │   └── Logger.lua       # Logging utility
 │   └── serverConfig.json    # Server configuration (auto-generated)
 ├── default.project.json     # Rojo project configuration
 └── plugin.rbxm              # Built plugin file (generated)
