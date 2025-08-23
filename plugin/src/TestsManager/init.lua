@@ -38,6 +38,7 @@ type TestsManagerData = {
 	sseClientConnections: { [string]: RBXScriptConnection },
 	active: boolean,
 	reconnectAttempts: number,
+	maxReconnectAttempts: number,
 	maxReconnectDelay: number,
 
 	testRbxmBuffers: { [TestId]: buffer },
@@ -66,6 +67,7 @@ function TestsManager.init(): TestsManager
 
 		active = false,
 		reconnectAttempts = 0,
+		maxReconnectAttempts = 10,
 		maxReconnectDelay = 30,
 		sseClientConnections = {},
 		testRbxmBuffers = {},
@@ -212,18 +214,43 @@ function TestsManager.awaitHealthyServer(self: TestsManager)
 end
 
 function TestsManager.reconnectWithBackoff(self: TestsManager)
-	local delay = math.min(2 ^ self.reconnectAttempts, self.maxReconnectDelay)
-	self.reconnectAttempts = self.reconnectAttempts + 1
+	self.reconnectAttempts += 1
 
-	logger:warning(`Reconnecting SSE client in {delay} seconds (attempt {self.reconnectAttempts})...`)
-	task.wait(delay)
+	if self.reconnectAttempts > self.maxReconnectAttempts then
+		logger:error(`Maximum reconnection attempts ({self.maxReconnectAttempts}) reached. Stopping reconnection.`)
+		self:stop()
+		return
+	end
+
+	local reconnectDelay = if self.reconnectAttempts == 1
+		then 0
+		else math.min(2 ^ (self.reconnectAttempts - 1), self.maxReconnectDelay)
+
+	if reconnectDelay > 0 then
+		logger:warning(
+			`Reconnecting SSE client in {reconnectDelay} seconds (attempt {self.reconnectAttempts}/{self.maxReconnectAttempts})...`
+		)
+		task.wait(reconnectDelay)
+	else
+		logger:warning(
+			`Reconnecting SSE client immediately (attempt {self.reconnectAttempts}/{self.maxReconnectAttempts})...`
+		)
+	end
 
 	if self.active then
-		self:connectSSEClient()
+		local sseClient = self:connectSSEClient()
+		if sseClient then
+			-- Reset reconnect attempts on successful connection
+			logger:info("SSE connection restored after", self.reconnectAttempts, "attempts")
+			self.reconnectAttempts = 0
+		else
+			-- Failed to connect, will retry
+			self:reconnectWithBackoff()
+		end
 	end
 end
 
-function TestsManager.connectSSEClient(self: TestsManager): WebStreamClient
+function TestsManager.connectSSEClient(self: TestsManager): WebStreamClient?
 	local success, sseClient = pcall(function()
 		return HttpService:CreateWebStreamClient(Enum.WebStreamClientType.SSE, {
 			Url = `{self.serverUrl}/_events`,
@@ -237,6 +264,7 @@ function TestsManager.connectSSEClient(self: TestsManager): WebStreamClient
 
 	if not success then
 		logger:error("Failed to create SSE client: " .. tostring(sseClient))
+		return nil
 	else
 		logger:info("Connected SSE Client to server")
 	end
@@ -247,11 +275,6 @@ function TestsManager.connectSSEClient(self: TestsManager): WebStreamClient
 	end
 
 	self.sseClientConnections.MessageReceived = sseClient.MessageReceived:Connect(function(message)
-		-- Reset reconnect attempts on successful message
-		if self.reconnectAttempts > 0 then
-			logger:info("SSE connection restored after", self.reconnectAttempts, "attempts")
-			self.reconnectAttempts = 0
-		end
 		self:handleSSEMessage(message)
 	end)
 	self.sseClientConnections.Error = sseClient.Error:Connect(function(code, message)

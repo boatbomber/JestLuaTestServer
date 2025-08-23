@@ -81,17 +81,14 @@ end
 
 function Logger.error(self: Logger, ...: any)
 	self:log("error", ...)
-	error("Halting execution due to error", 2)
 end
 
 function Logger.fatal(self: Logger, ...: any)
 	self:log("fatal", ...)
-	error("Halting execution due to fatal error", 2)
 end
 
 function Logger.critical(self: Logger, ...: any)
 	self:log("critical", ...)
-	error("Halting execution due to critical error", 2)
 end
 
 return Logger
