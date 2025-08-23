@@ -49,9 +49,6 @@ class SessionTokenAuth:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        logger.info(credentials.__class__.__name__)
-        logger.info(credentials)
-
         if not credentials.scheme.lower() == "bearer":
             raise HTTPException(
                 status_code=401,
