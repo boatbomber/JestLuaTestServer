@@ -247,6 +247,8 @@ function TestsManager.reconnectWithBackoff(self: TestsManager)
 			-- Failed to connect, will retry
 			self:reconnectWithBackoff()
 		end
+	else
+		logger:warning("Cancelling scheduled reconnect since client is no longer active")
 	end
 end
 
@@ -322,11 +324,13 @@ function TestsManager.handleSSEMessage(self: TestsManager, message: string)
 		self.testRbxmBufferOffsets[data.test_id] += buffer.len(data.chunk_buffer)
 	elseif event == "test_end" then
 		logger:debug(`Received test end for {data.test_id}`)
-		local outcome = self:runTest(data.test_id)
-		self:reportTestOutcome(data.test_id, outcome)
+		task.spawn(function()
+			local outcome = self:runTest(data.test_id)
+			self:reportTestOutcome(data.test_id, outcome)
 
-		self.testRbxmBuffers[data.test_id] = nil
-		self.testRbxmBufferOffsets[data.test_id] = nil
+			self.testRbxmBuffers[data.test_id] = nil
+			self.testRbxmBufferOffsets[data.test_id] = nil
+		end)
 	elseif event == "shutdown" then
 		logger:info("Server is shutting down")
 		self:stop()
