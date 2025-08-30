@@ -10,17 +10,17 @@ class FFlagManager:
     """Manages Roblox Studio FFlags configuration"""
 
     REQUIRED_FFLAGS = {
-        "DFFlagEnableHttpStreaming": "true",
-        "DFFlagDisableWebStreamClientInStudioScripts": "false",
-        "DFFlagEnableWebStreamClientInStudio": "true",
-        "DFFlagHttpServiceRequestTimeout": "true",
-        "DFIntWebStreamClientRequestTimeoutMs": "100000",
+        # For Jest
         "FFlagEnableLoadModule": "true",
     }
 
     def __init__(self, studio_dir: Path | None = None):
-        self.studio_dir = studio_dir or (Path.home() / "AppData" / "Local" / "Roblox Studio")
-        self.client_settings_path = self.studio_dir / "ClientSettings" / "ClientAppSettings.json"
+        self.studio_dir = studio_dir or (
+            Path.home() / "AppData" / "Local" / "Roblox Studio"
+        )
+        self.client_settings_path = (
+            self.studio_dir / "ClientSettings" / "ClientAppSettings.json"
+        )
         self.original_settings: dict | None = None
         self._applied = False
 

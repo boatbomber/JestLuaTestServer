@@ -236,11 +236,6 @@ The server automatically configures these FFlags in `ClientSettings/ClientAppSet
 
 ```json
 {
-  "DFFlagEnableHttpStreaming": "true",
-  "DFFlagDisableWebStreamClientInStudioScripts": "false",
-  "DFFlagEnableWebStreamClientInStudio": "true",
-  "DFFlagHttpServiceRequestTimeout": "true",
-  "DFIntWebStreamClientRequestTimeoutMs": "100000",
   "FFlagEnableLoadModule": "true"
 }
 ```

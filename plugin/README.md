@@ -80,14 +80,6 @@ The plugin is automatically installed by the server when it starts:
 4. Builds the plugin using Rojo
 5. Installs to Roblox Studio's plugin directory
 
-## Manual Usage (Workaround)
-
-Due to a current Roblox Studio limitation with `CreateWebStreamClient` in plugins, the plugin must be started manually:
-
-1. The plugin automatically copies itself to `game.ServerStorage`
-2. Open the Studio command bar
-3. Run: `require(game.ServerStorage.TestsManager):start()`
-
 ## Building
 
 To build the plugin manually:
@@ -160,15 +152,7 @@ Check the Studio output window for plugin logs and error messages.
 
 ## Known Issues
 
-1. **CreateWebStreamClient Bug**: The API is currently broken for Studio plugins, requiring manual startup from the command bar
-2. **Test Isolation**: Tests run in the same environment, so global state changes may affect subsequent tests
-
-## Dependencies
-
-The plugin requires these to be present in the test place:
-
-- Jest Lua and all its dependencies (installed via Wally)
-- Roblox Studio with SSE support enabled (via FFlags)
+1. **Test Isolation**: Tests run in the same environment, so global state changes may affect subsequent tests
 
 ## License
 

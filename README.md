@@ -225,11 +225,6 @@ All environment variables should be prefixed with `JEST_TEST_SERVER_`:
 ### Studio FFlags
 
 The server automatically configures these Studio FFlags:
-- `DFFlagEnableHttpStreaming`: Enables HTTP streaming support
-- `DFFlagDisableWebStreamClientInStudioScripts`: Allows WebStreamClient in plugins
-- `DFFlagEnableWebStreamClientInStudio`: Enables WebStreamClient API
-- `DFFlagHttpServiceRequestTimeout`: Enables HTTP request timeout handling
-- `DFIntWebStreamClientRequestTimeoutMs`: Sets request timeout (100000ms)
 - `FFlagEnableLoadModule`: Enables module loading for Jest
 
 ## Project Structure
@@ -263,13 +258,6 @@ JestLuaTestServer/
 ├── rokit.toml                      # Roblox toolchain configuration
 └── selene.toml                     # Lua linter configuration
 ```
-
-## Known Issues
-
-- **WebStreamClient Limitation**: Due to a current Roblox Studio bug, the plugin's `CreateWebStreamClient` is broken. As a workaround, the plugin installs itself to ServerStorage and must be manually started from the command bar instead:
-  ```lua
-  require(game.ServerStorage.TestsManager).init()
-  ```
 
 ## License
 
