@@ -59,7 +59,11 @@ function TestsManager.init(): TestsManager
 
 	local serverConfig = require(serverConfigModule)
 	logger:setLevel(serverConfig.log_level)
-	runCLIOptions.testTimeout = serverConfig.test_timeout
+	-- Subtracting 1 second to account for overhead cost. The server total timeout is N,
+	-- the plugin has to receive the test, deserialize it, run it, and report the results.
+	-- We want Jest to timeout the test before the server does, so we subtract 1 second.
+	-- We can adjust this later if needed.
+	runCLIOptions.testTimeout = serverConfig.test_timeout - 1
 
 	local self = setmetatable({
 		serverConfig = serverConfig,
