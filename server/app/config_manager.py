@@ -69,7 +69,9 @@ class TestingConfig(BaseConfig):
     enable_auth: bool = False
 
 
-def get_config(env: Literal["development", "production", "test"] | None = None) -> BaseConfig:
+def get_config(
+    env: Literal["development", "production", "test"] | None = None,
+) -> BaseConfig:
     """Get configuration based on environment"""
     if env is None:
         env = os.getenv("JEST_TEST_SERVER_ENV", "development").lower()

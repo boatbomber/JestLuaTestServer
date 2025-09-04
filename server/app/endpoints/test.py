@@ -118,23 +118,23 @@ async def run_test(
 
         except TimeoutError:
             logger.error(f"Test {test_id} timed out - assuming Studio is hung, restarting...")
-            
+
             # Restart Studio to recover from hung state
             try:
                 logger.info("Force killing Studio due to timeout...")
                 await studio_manager.stop_studio(skip_graceful=True)
-                
+
                 logger.info("Restarting Studio after timeout recovery...")
                 restart_success = await studio_manager.start_studio()
-                
+
                 if restart_success:
                     logger.info("Studio successfully restarted after timeout")
                 else:
                     logger.error("Failed to restart Studio after timeout")
-                    
+
             except Exception as e:
                 logger.error(f"Error during Studio restart after timeout: {e}")
-            
+
             return TestResponse(
                 test_id=test_id,
                 status="timeout",

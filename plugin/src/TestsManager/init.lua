@@ -12,7 +12,7 @@ local runCLIOptions = {
 	verbose = false,
 	ci = true,
 	-- json=true,
-	testTimeout = 10,
+	testTimeout = 10 * 1000,
 }
 
 type TestId = string
@@ -63,7 +63,7 @@ function TestsManager.init(): TestsManager
 	-- the plugin has to receive the test, deserialize it, run it, and report the results.
 	-- We want Jest to timeout the test before the server does, so we subtract 1 second.
 	-- We can adjust this later if needed.
-	runCLIOptions.testTimeout = serverConfig.test_timeout - 1
+	runCLIOptions.testTimeout = serverConfig.test_timeout * 1000 - 1000
 
 	local self = setmetatable({
 		serverConfig = serverConfig,

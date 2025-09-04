@@ -15,12 +15,8 @@ class FFlagManager:
     }
 
     def __init__(self, studio_dir: Path | None = None):
-        self.studio_dir = studio_dir or (
-            Path.home() / "AppData" / "Local" / "Roblox Studio"
-        )
-        self.client_settings_path = (
-            self.studio_dir / "ClientSettings" / "ClientAppSettings.json"
-        )
+        self.studio_dir = studio_dir or (Path.home() / "AppData" / "Local" / "Roblox Studio")
+        self.client_settings_path = self.studio_dir / "ClientSettings" / "ClientAppSettings.json"
         self.original_settings: dict | None = None
         self._applied = False
 

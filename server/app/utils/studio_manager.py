@@ -251,7 +251,7 @@ class StudioManager:
             if skip_graceful:
                 logger.info("Force killing Studio process (skipping graceful shutdown)...")
                 await self._force_kill_studio_process()
-                
+
                 # Wait for force kill
                 try:
                     await asyncio.wait_for(self._wait_for_process(), timeout=5.0)
