@@ -25,14 +25,17 @@ async def monitor_heartbeat(studio_manager):
 
             # Skip monitoring if Studio isn't running
             if not studio_manager.is_running():
+                logger.warning("Studio is not running, skipping heartbeat monitoring")
                 continue
 
             # Skip if no heartbeat has been received yet (Studio just starting)
             if studio_manager._last_heartbeat is None:
+                logger.warning("No heartbeat received yet, skipping heartbeat monitoring")
                 continue
 
             # Check if heartbeat is stale (no heartbeat for 5 seconds)
             time_since_heartbeat = (datetime.now() - studio_manager._last_heartbeat).total_seconds()
+            logger.debug(f"Time since heartbeat: {time_since_heartbeat:.1f}s")
             if time_since_heartbeat > 5:
                 logger.warning(
                     f"No heartbeat for {time_since_heartbeat:.1f}s, restarting Studio..."
@@ -43,12 +46,11 @@ async def monitor_heartbeat(studio_manager):
                     await studio_manager.stop_studio(skip_graceful=True)
 
                     # Restart Studio
+                    studio_manager._last_heartbeat = None
                     restart_success = await studio_manager.start_studio()
 
                     if restart_success:
                         logger.info("Studio successfully restarted due to missing heartbeat")
-                        # Reset heartbeat tracking
-                        studio_manager._last_heartbeat = None
                     else:
                         logger.error("Failed to restart Studio after heartbeat timeout")
 
