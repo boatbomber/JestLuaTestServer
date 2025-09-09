@@ -3,6 +3,7 @@ import logging
 import subprocess
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from app.config_manager import config as app_config
@@ -22,6 +23,9 @@ class StudioManager:
         # Component managers
         self.plugin_manager = None  # Set by managed_studio context
         self.fflag_manager = None  # Set by managed_studio context
+
+        # Heartbeat tracking
+        self._last_heartbeat: datetime | None = None
 
         # Paths
         self.unit_tests_place_dir = (Path(__file__).parent / "unit_tests_place").resolve()
@@ -322,6 +326,10 @@ class StudioManager:
     def is_running(self) -> bool:
         """Check if Studio process is currently running"""
         return self.process is not None and self.process.poll() is None
+    
+    def update_heartbeat(self) -> None:
+        """Update the last heartbeat timestamp"""
+        self._last_heartbeat = datetime.now()
 
     def is_healthy(self) -> dict:
         """Check health status of all components"""

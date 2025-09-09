@@ -11,7 +11,7 @@ class BaseConfig(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8325
-    test_timeout: int = 30
+    test_timeout: int = 10
     chunk_size: int = 8192
     log_level: str = "INFO"
 
@@ -52,7 +52,7 @@ class ProductionConfig(BaseConfig):
     # Stricter rate limiting in production
     max_requests_per_minute: int = 10
     # Longer timeouts for production stability
-    test_timeout: int = 60
+    test_timeout: int = 15
     shutdown_timeout: int = 60
 
 

@@ -2,6 +2,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,58 @@ from app.utils.studio_manager import managed_studio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def monitor_heartbeat(studio_manager):
+    """Monitor heartbeat from plugin and restart Studio if no heartbeat for 5 seconds"""
+    while True:
+        try:
+            await asyncio.sleep(1)  # Check every second
+
+            # Skip monitoring if Studio isn't running
+            if not studio_manager.is_running():
+                continue
+
+            # Skip if no heartbeat has been received yet (Studio just starting)
+            if studio_manager._last_heartbeat is None:
+                continue
+
+            # Check if heartbeat is stale (no heartbeat for 5 seconds)
+            time_since_heartbeat = (
+                datetime.now() - studio_manager._last_heartbeat
+            ).total_seconds()
+            if time_since_heartbeat > 5:
+                logger.warning(
+                    f"No heartbeat for {time_since_heartbeat:.1f}s, restarting Studio..."
+                )
+
+                try:
+                    # Force kill Studio since it's likely hung
+                    await studio_manager.stop_studio(skip_graceful=True)
+
+                    # Restart Studio
+                    restart_success = await studio_manager.start_studio()
+
+                    if restart_success:
+                        logger.info(
+                            "Studio successfully restarted due to missing heartbeat"
+                        )
+                        # Reset heartbeat tracking
+                        studio_manager._last_heartbeat = None
+                    else:
+                        logger.error("Failed to restart Studio after heartbeat timeout")
+
+                except Exception as e:
+                    logger.error(
+                        f"Error during Studio restart after heartbeat timeout: {e}"
+                    )
+
+        except asyncio.CancelledError:
+            logger.info("Heartbeat monitoring cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Error in heartbeat monitoring: {e}")
+            await asyncio.sleep(5)  # Wait before retrying
 
 
 @asynccontextmanager
@@ -32,6 +85,9 @@ async def lifespan(app: FastAPI):
         app.state.rate_limiter = defaultdict(list)  # Track requests per client
         app.state.accepting_tests = True  # For graceful shutdown
 
+        # Start heartbeat monitoring task
+        heartbeat_task = asyncio.create_task(monitor_heartbeat(studio_manager))
+
         yield
 
         logger.info("Shutting down server...")
@@ -39,6 +95,13 @@ async def lifespan(app: FastAPI):
         # Stop accepting new tests
         app.state.accepting_tests = False
         logger.info("Stopped accepting new tests")
+
+        # Cancel heartbeat monitoring
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
 
         # Wait for active tests to complete (with timeout)
         max_wait = app_config.shutdown_timeout

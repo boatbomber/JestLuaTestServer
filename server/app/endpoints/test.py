@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
 
-from app.auth import ExternalAuthDep
+from app.auth import ExternalAuthDep, InternalAuthDep
 from app.config_manager import config as app_config
 from app.dependencies import (
     AcceptingTestsDep,
@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 RBXM_SIGNATURE = b"<roblox!"
 
 router = APIRouter()
+
+
+@router.post("/_heartbeat")
+async def heartbeat(studio_manager: StudioManagerDep, _auth: InternalAuthDep):
+    """Heartbeat endpoint for the plugin to indicate it's alive"""
+    studio_manager.update_heartbeat()
+    return {"status": "alive"}
 
 
 class TestResponse(BaseModel):
@@ -101,7 +108,9 @@ async def run_test(
         )
 
         try:
-            outcome = await asyncio.wait_for(result_future, timeout=app_config.test_timeout)
+            outcome = await asyncio.wait_for(
+                result_future, timeout=app_config.test_timeout
+            )
             logger.info(f"Responding with outcome for test {test_id}")
             if outcome.get("success"):
                 return TestResponse(
@@ -117,28 +126,14 @@ async def run_test(
                 )
 
         except TimeoutError:
-            logger.error(f"Test {test_id} timed out - assuming Studio is hung, restarting...")
-
-            # Restart Studio to recover from hung state
-            try:
-                logger.info("Force killing Studio due to timeout...")
-                await studio_manager.stop_studio(skip_graceful=True)
-
-                logger.info("Restarting Studio after timeout recovery...")
-                restart_success = await studio_manager.start_studio()
-
-                if restart_success:
-                    logger.info("Studio successfully restarted after timeout")
-                else:
-                    logger.error("Failed to restart Studio after timeout")
-
-            except Exception as e:
-                logger.error(f"Error during Studio restart after timeout: {e}")
+            logger.error(
+                f"Test {test_id} timed out after {app_config.test_timeout} seconds"
+            )
 
             return TestResponse(
                 test_id=test_id,
                 status="timeout",
-                error=f"Test execution timed out after {app_config.test_timeout} seconds. Studio has been restarted.",
+                error=f"Test execution timed out after {app_config.test_timeout} seconds.",
             )
 
     except Exception as e:

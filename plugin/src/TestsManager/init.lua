@@ -41,6 +41,8 @@ type TestsManagerData = {
 	maxReconnectAttempts: number,
 	maxReconnectDelay: number,
 
+	heartbeatTask: thread?,
+
 	testRbxmBuffers: { [TestId]: buffer },
 	testRbxmBufferOffsets: { [TestId]: number },
 }
@@ -74,6 +76,7 @@ function TestsManager.init(): TestsManager
 		maxReconnectAttempts = 10,
 		maxReconnectDelay = 30,
 		sseClientConnections = {},
+		heartbeatTask = nil,
 		testRbxmBuffers = {},
 		testRbxmBufferOffsets = {},
 	}, TestsManager) :: TestsManager
@@ -93,6 +96,7 @@ end
 
 function TestsManager._runTestUnsafe(self: TestsManager, testId: TestId): Outcome<any, string>
 	local test = self:deserializeTest(testId)
+	test.Parent = workspace
 
 	logger:info(`Sending {testId} to Jest for execution...`)
 	local status, jestResult = Jest.runCLI(script, runCLIOptions, { test }):awaitStatus()
@@ -185,6 +189,49 @@ function TestsManager.reportTestOutcome(self: TestsManager, testId: TestId, outc
 
 	logger:info("Reported test outcome for", testId)
 	return true
+end
+
+function TestsManager.sendHeartbeat(self: TestsManager): boolean
+	local success, response = pcall(HttpService.RequestAsync, HttpService, {
+		Url = `{self.serverUrl}/_heartbeat`,
+		Method = "POST" :: "POST",
+		Headers = {
+			["Content-Type"] = "application/json",
+			["Authorization"] = `Bearer {self.serverConfig.bearer_token}`,
+		},
+		Body = "{}",
+		Compress = Enum.HttpCompression.None,
+	})
+
+	if not success then
+		logger:debug("Failed to send heartbeat:", response)
+		return false
+	end
+
+	logger:trace("Sent heartbeat to server")
+	return true
+end
+
+function TestsManager.startHeartbeat(self: TestsManager)
+	if self.heartbeatTask then
+		return -- Already running
+	end
+
+	self.heartbeatTask = task.spawn(function()
+		while self.active do
+			self:sendHeartbeat()
+			task.wait(1) -- Send heartbeat every second
+		end
+	end)
+	logger:debug("Started heartbeat task")
+end
+
+function TestsManager.stopHeartbeat(self: TestsManager)
+	if self.heartbeatTask then
+		task.cancel(self.heartbeatTask)
+		self.heartbeatTask = nil
+		logger:debug("Stopped heartbeat task")
+	end
 end
 
 function TestsManager.awaitHealthyServer(self: TestsManager)
@@ -347,10 +394,12 @@ function TestsManager.start(self: TestsManager)
 	self.active = true
 	self:awaitHealthyServer()
 	self:connectSSEClient()
+	self:startHeartbeat()
 end
 
 function TestsManager.stop(self: TestsManager)
 	self.active = false
+	self:stopHeartbeat()
 	if self.sseClient then
 		self.sseClient:Close()
 	end
