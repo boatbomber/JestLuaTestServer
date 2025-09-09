@@ -2,6 +2,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
@@ -108,9 +109,7 @@ async def run_test(
         )
 
         try:
-            outcome = await asyncio.wait_for(
-                result_future, timeout=app_config.test_timeout
-            )
+            outcome = await asyncio.wait_for(result_future, timeout=app_config.test_timeout)
             logger.info(f"Responding with outcome for test {test_id}")
             if outcome.get("success"):
                 return TestResponse(
@@ -126,9 +125,21 @@ async def run_test(
                 )
 
         except TimeoutError:
-            logger.error(
-                f"Test {test_id} timed out after {app_config.test_timeout} seconds"
-            )
+            logger.error(f"Test {test_id} timed out after {app_config.test_timeout} seconds")
+
+            # Store the rbxm blob for debugging hangs
+            try:
+                repro_dir = Path(__file__).parent.parent.parent.parent / "repro" / "hangs"
+                repro_dir.mkdir(parents=True, exist_ok=True)
+                rbxm_file = repro_dir / f"{test_id}.rbxm"
+
+                with open(rbxm_file, "wb") as f:
+                    f.write(rbxm_data)
+
+                logger.info(f"Saved timeout rbxm to {rbxm_file} for debugging")
+
+            except Exception as e:
+                logger.error(f"Failed to save timeout rbxm for {test_id}: {e}")
 
             return TestResponse(
                 test_id=test_id,

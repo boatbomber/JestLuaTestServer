@@ -84,6 +84,8 @@ async def event_generator(request: Request) -> AsyncGenerator:
                             }
                         ),
                     }
+                    # sleep 50 ms between chunks
+                    await asyncio.sleep(0.05)
 
                 yield {
                     "event": "test_end",

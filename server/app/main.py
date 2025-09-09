@@ -32,9 +32,7 @@ async def monitor_heartbeat(studio_manager):
                 continue
 
             # Check if heartbeat is stale (no heartbeat for 5 seconds)
-            time_since_heartbeat = (
-                datetime.now() - studio_manager._last_heartbeat
-            ).total_seconds()
+            time_since_heartbeat = (datetime.now() - studio_manager._last_heartbeat).total_seconds()
             if time_since_heartbeat > 5:
                 logger.warning(
                     f"No heartbeat for {time_since_heartbeat:.1f}s, restarting Studio..."
@@ -48,18 +46,14 @@ async def monitor_heartbeat(studio_manager):
                     restart_success = await studio_manager.start_studio()
 
                     if restart_success:
-                        logger.info(
-                            "Studio successfully restarted due to missing heartbeat"
-                        )
+                        logger.info("Studio successfully restarted due to missing heartbeat")
                         # Reset heartbeat tracking
                         studio_manager._last_heartbeat = None
                     else:
                         logger.error("Failed to restart Studio after heartbeat timeout")
 
                 except Exception as e:
-                    logger.error(
-                        f"Error during Studio restart after heartbeat timeout: {e}"
-                    )
+                    logger.error(f"Error during Studio restart after heartbeat timeout: {e}")
 
         except asyncio.CancelledError:
             logger.info("Heartbeat monitoring cancelled")

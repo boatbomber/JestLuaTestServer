@@ -326,7 +326,7 @@ class StudioManager:
     def is_running(self) -> bool:
         """Check if Studio process is currently running"""
         return self.process is not None and self.process.poll() is None
-    
+
     def update_heartbeat(self) -> None:
         """Update the last heartbeat timestamp"""
         self._last_heartbeat = datetime.now()
