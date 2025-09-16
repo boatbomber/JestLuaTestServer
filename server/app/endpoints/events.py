@@ -9,6 +9,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.auth import InternalAuthDep
 from app.config_manager import config as app_config
+from app.dependencies import StudioManagerDep
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +25,20 @@ async def _chunk_data_async(data: str, chunk_size: int):
             await asyncio.sleep(0)
 
 
-async def event_generator(request: Request) -> AsyncGenerator:
+async def event_generator(
+    request: Request,
+    studio_manager: StudioManagerDep,
+) -> AsyncGenerator:
     logger.info("Client connected to SSE endpoint")
     current_test_data = None
+
+    studio_manager._plugin_connections.add(request)
 
     try:
         while True:
             if await request.is_disconnected():
                 logger.info("Client disconnected from SSE")
+                studio_manager._plugin_connections.remove(request)
                 # Put test data back if we have any that wasn't fully sent
                 if current_test_data is not None:
                     logger.warning(
@@ -67,6 +74,7 @@ async def event_generator(request: Request) -> AsyncGenerator:
                         logger.warning(
                             f"Client disconnected during chunk streaming for test {test_id}, re-queueing"
                         )
+                        studio_manager._plugin_connections.remove(request)
                         await request.app.state.test_queue.put(current_test_data)
                         current_test_data = None
                         return
@@ -105,6 +113,7 @@ async def event_generator(request: Request) -> AsyncGenerator:
                 continue
 
     except asyncio.CancelledError:
+        studio_manager._plugin_connections.remove(request)
         logger.info("SSE connection cancelled")
         # Put test data back if we have any that wasn't fully sent
         if current_test_data is not None:
@@ -112,6 +121,7 @@ async def event_generator(request: Request) -> AsyncGenerator:
             await request.app.state.test_queue.put(current_test_data)
         raise
     except Exception as e:
+        studio_manager._plugin_connections.remove(request)
         logger.error(f"Error in SSE stream: {e}")
         # Put test data back if we have any that wasn't fully sent
         if current_test_data is not None:
@@ -121,5 +131,9 @@ async def event_generator(request: Request) -> AsyncGenerator:
 
 
 @router.get("/_events")
-async def events_stream(request: Request, _auth: InternalAuthDep):
-    return EventSourceResponse(event_generator(request))
+async def events_stream(
+    request: Request,
+    _auth: InternalAuthDep,
+    studio_manager: StudioManagerDep,
+):
+    return EventSourceResponse(event_generator(request, studio_manager))

@@ -11,7 +11,7 @@ class BaseConfig(BaseSettings):
 
     host: str = "127.0.0.1"
     port: int = 8325
-    test_timeout: int = 10
+    test_timeout: int = 12
     chunk_size: int = 8192
     log_level: str = "INFO"
 
@@ -19,7 +19,7 @@ class BaseConfig(BaseSettings):
     enable_auth: bool = True
 
     # Rate limiting
-    max_requests_per_minute: int = 10
+    max_requests_per_minute: int = 500
     max_rbxm_size: int = 50 * 1024 * 1024  # 50MB
 
     # Graceful shutdown
@@ -40,7 +40,7 @@ class DevelopmentConfig(BaseConfig):
     # Allow all origins in development
     cors_origins: list[str] = ["*"]
     # More lenient rate limiting in dev
-    max_requests_per_minute: int = 60
+    max_requests_per_minute: int = 5000
 
 
 class ProductionConfig(BaseConfig):
@@ -50,7 +50,7 @@ class ProductionConfig(BaseConfig):
     # Restrict CORS in production
     cors_origins: list[str] = ["http://localhost:*"]
     # Stricter rate limiting in production
-    max_requests_per_minute: int = 10
+    max_requests_per_minute: int = 300
     # Longer timeouts for production stability
     test_timeout: int = 15
     shutdown_timeout: int = 60

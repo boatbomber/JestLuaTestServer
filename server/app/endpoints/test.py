@@ -108,8 +108,14 @@ async def run_test(
             }
         )
 
+        while not all(studio_manager.is_healthy().values()):
+            logger.debug("Waiting for Studio to be ready before starting the timeout counter")
+            await asyncio.sleep(0.1)
+
         try:
-            outcome = await asyncio.wait_for(result_future, timeout=app_config.test_timeout)
+            outcome = await asyncio.wait_for(
+                result_future, timeout=test_queue.qsize() * app_config.test_timeout
+            )
             logger.info(f"Responding with outcome for test {test_id}")
             if outcome.get("success"):
                 return TestResponse(

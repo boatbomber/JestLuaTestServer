@@ -36,7 +36,7 @@ async def monitor_heartbeat(studio_manager):
             # Check if heartbeat is stale (no heartbeat for 5 seconds)
             time_since_heartbeat = (datetime.now() - studio_manager._last_heartbeat).total_seconds()
             logger.debug(f"Time since heartbeat: {time_since_heartbeat:.1f}s")
-            if time_since_heartbeat > 8:
+            if time_since_heartbeat > app_config.test_timeout - 1:
                 logger.warning(
                     f"No heartbeat for {time_since_heartbeat:.1f}s, restarting Studio..."
                 )

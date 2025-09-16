@@ -26,6 +26,7 @@ class StudioManager:
 
         # Heartbeat tracking
         self._last_heartbeat: datetime | None = None
+        self._plugin_connections: set = set()
 
         # Paths
         self.unit_tests_place_dir = (Path(__file__).parent / "unit_tests_place").resolve()
@@ -100,7 +101,9 @@ class StudioManager:
             logger.info("Installing Wally dependencies...")
             try:
                 subprocess.check_output(
-                    ["wally", "install"], stderr=subprocess.STDOUT, cwd=self.unit_tests_place_dir
+                    ["wally", "install"],
+                    stderr=subprocess.STDOUT,
+                    cwd=self.unit_tests_place_dir,
                 )
             except subprocess.CalledProcessError as e:
                 logger.error(f"Wally install failed: {e}")
@@ -335,10 +338,11 @@ class StudioManager:
         """Check health status of all components"""
         return {
             "studio_running": self.is_running(),
-            "plugin_installed": self.plugin_manager.is_installed()
-            if self.plugin_manager
-            else False,
-            "fflags_applied": self.fflag_manager._applied if self.fflag_manager else False,
+            "plugin_installed": (
+                self.plugin_manager.is_installed() if self.plugin_manager else False
+            ),
+            "plugin_connected": len(self._plugin_connections) > 0,
+            "fflags_applied": (self.fflag_manager._applied if self.fflag_manager else False),
             "placefile_built": self.built_unit_tests_placefile is not None
             and self.built_unit_tests_placefile.exists(),
         }
