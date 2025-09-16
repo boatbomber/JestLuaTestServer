@@ -95,6 +95,12 @@ async def run_test(
     try:
         logger.info(f"Received test {test_id}, rbxm size: {len(rbxm_data)} bytes")
 
+        if not all(studio_manager.is_healthy().values()):
+            logger.debug(f"Waiting for Studio to be ready before handling incoming test {test_id}")
+            while not all(studio_manager.is_healthy().values()):
+                await asyncio.sleep(0.25)
+            await asyncio.sleep(1)
+
         result_future = asyncio.Future()
         active_tests[test_id] = {
             "data": rbxm_data,
@@ -107,10 +113,6 @@ async def run_test(
                 "data": rbxm_data,
             }
         )
-
-        while not all(studio_manager.is_healthy().values()):
-            logger.debug("Waiting for Studio to be ready before starting the timeout counter")
-            await asyncio.sleep(0.1)
 
         try:
             outcome = await asyncio.wait_for(

@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 from collections.abc import AsyncGenerator
+from math import ceil
 
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
@@ -68,7 +69,11 @@ async def event_generator(
                 }
 
                 # Use async generator for better backpressure handling
+                chunk_idx = 0
+                final_chunk_idx = ceil(len(b64_rbxm) / app_config.chunk_size)
                 async for chunk in _chunk_data_async(b64_rbxm, app_config.chunk_size):
+                    chunk_idx += 1
+
                     # Check for disconnection before sending each chunk
                     if await request.is_disconnected():
                         logger.warning(
@@ -84,6 +89,7 @@ async def event_generator(
                         "data": json.dumps(
                             {
                                 "test_id": test_id,
+                                "is_final_chunk": chunk_idx == final_chunk_idx,
                                 "chunk_buffer": {
                                     "m": None,
                                     "t": "buffer",
@@ -93,16 +99,6 @@ async def event_generator(
                         ),
                     }
                     await asyncio.sleep(0.1)
-
-                await asyncio.sleep(0.2)
-                yield {
-                    "event": "test_end",
-                    "data": json.dumps(
-                        {
-                            "test_id": test_id,
-                        }
-                    ),
-                }
 
                 # Successfully sent all data, clear the current test
                 current_test_data = None

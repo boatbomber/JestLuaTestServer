@@ -373,15 +373,17 @@ function TestsManager.handleSSEMessage(self: TestsManager, message: string)
 		local offset = self.testRbxmBufferOffsets[data.test_id]
 		buffer.copy(rbxmBuffer, offset, data.chunk_buffer)
 		self.testRbxmBufferOffsets[data.test_id] += buffer.len(data.chunk_buffer)
-	elseif event == "test_end" then
-		logger:debug(`Received test end for {data.test_id}`)
-		task.spawn(function()
-			local outcome = self:runTest(data.test_id)
-			self:reportTestOutcome(data.test_id, outcome)
 
-			self.testRbxmBuffers[data.test_id] = nil
-			self.testRbxmBufferOffsets[data.test_id] = nil
-		end)
+		if data.is_final_chunk then
+			logger:debug(`Received final chunk for {data.test_id}`)
+			task.spawn(function()
+				local outcome = self:runTest(data.test_id)
+				self:reportTestOutcome(data.test_id, outcome)
+
+				self.testRbxmBuffers[data.test_id] = nil
+				self.testRbxmBufferOffsets[data.test_id] = nil
+			end)
+		end
 	elseif event == "shutdown" then
 		logger:info("Server is shutting down")
 		self:stop()
