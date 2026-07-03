@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def monitor_heartbeat(studio_manager):
+async def monitor_heartbeat(app: FastAPI, studio_manager):
     """Monitor heartbeat from plugin and restart Studio if no heartbeat for 5 seconds"""
     while True:
         try:
@@ -40,6 +40,23 @@ async def monitor_heartbeat(studio_manager):
                 logger.warning(
                     f"No heartbeat for {time_since_heartbeat:.1f}s, restarting Studio..."
                 )
+
+                # The test at the plugin right now is the likely culprit: an
+                # un-yielding busy-loop starves the heartbeat along with the
+                # whole VM. Resolve it as failed so its client gets a
+                # deterministic outcome (instead of a timeout it shares with
+                # innocent queued tests) and the serial-dispatch gate releases.
+                executing_id = getattr(app.state, "executing_test_id", None)
+                test_info = app.state.active_tests.get(executing_id) if executing_id else None
+                if test_info and not test_info["future"].done():
+                    logger.warning(f"Marking executing test {executing_id} as hung")
+                    test_info["future"].set_result(
+                        {
+                            "success": False,
+                            "error": "Test starved the Studio heartbeat (likely an "
+                            "un-yielding infinite loop); Studio was force-restarted",
+                        }
+                    )
 
                 try:
                     # Force kill Studio since it's likely hung
@@ -82,7 +99,7 @@ async def lifespan(app: FastAPI):
         app.state.accepting_tests = True  # For graceful shutdown
 
         # Start heartbeat monitoring task
-        heartbeat_task = asyncio.create_task(monitor_heartbeat(studio_manager))
+        heartbeat_task = asyncio.create_task(monitor_heartbeat(app, studio_manager))
 
         yield
 

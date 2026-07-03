@@ -107,6 +107,18 @@ async def run_test(
             "future": result_future,
         }
 
+        # Queue position must be read BEFORE our own put: the dispatcher can
+        # dequeue us the moment we put, making qsize() 0 and the old
+        # qsize-after-put formula produce wait_for(timeout=0) — an instant
+        # spurious "timeout". Budget: every test ahead of us (+1 already at
+        # the plugin, +1 ourselves) is worth test_timeout under serial
+        # dispatch, plus 60s of slack so queued tests survive one Studio
+        # force-restart (a hung test starves the heartbeat and takes Studio
+        # down for tens of seconds; that blackout is not the queued tests'
+        # fault and must not convert them into timeouts).
+        queue_position = test_queue.qsize()
+        timeout = (queue_position + 2) * app_config.test_timeout + 60
+
         await test_queue.put(
             {
                 "test_id": test_id,
@@ -115,9 +127,7 @@ async def run_test(
         )
 
         try:
-            outcome = await asyncio.wait_for(
-                result_future, timeout=test_queue.qsize() * app_config.test_timeout
-            )
+            outcome = await asyncio.wait_for(result_future, timeout=timeout)
             logger.info(f"Responding with outcome for test {test_id}")
             if outcome.get("success"):
                 return TestResponse(

@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from math import ceil
 
 from fastapi import APIRouter, Request
@@ -48,6 +49,21 @@ async def event_generator(
                     await request.app.state.test_queue.put(current_test_data)
                 break
 
+            # Never dispatch into a wedged or restarting VM. A stale heartbeat
+            # means the current test is starving the scheduler — if we advanced
+            # executing_test_id now, the heartbeat monitor would blame the NEXT
+            # test for the hang when it restarts Studio (observed misattribution).
+            # Holding here keeps the culprit marking on the right test and only
+            # dispatches onto a live VM.
+            last_heartbeat = studio_manager._last_heartbeat
+            heartbeat_stale = (
+                last_heartbeat is not None
+                and (datetime.now() - last_heartbeat).total_seconds() > 3
+            )
+            if heartbeat_stale or not all(studio_manager.is_healthy().values()):
+                await asyncio.sleep(1)
+                continue
+
             try:
                 test_data = await asyncio.wait_for(request.app.state.test_queue.get(), timeout=15.0)
                 current_test_data = test_data  # Track the current test being processed
@@ -57,6 +73,10 @@ async def event_generator(
                 b64_rbxm = base64.b64encode(rbxm_data).decode("utf-8")
 
                 logger.info(f"Sending test {test_id} to plugin")
+                # Track the test now at the plugin: if it starves the
+                # heartbeat, the monitor resolves it as hung when it
+                # restarts Studio (see main.monitor_heartbeat).
+                request.app.state.executing_test_id = test_id
 
                 yield {
                     "event": "test_start",
@@ -102,6 +122,38 @@ async def event_generator(
 
                 # Successfully sent all data, clear the current test
                 current_test_data = None
+
+                # Serialize execution: hold dispatch until the plugin reports
+                # this test's outcome (or it's presumed hung). The plugin
+                # task.spawn()s every test it receives, and concurrent
+                # Jest.runCLI runs share one Studio Luau VM — a single hung
+                # test starves all the others into cascading timeouts.
+                test_info = request.app.state.active_tests.get(test_id)
+                result_future = test_info.get("future") if test_info else None
+                if result_future is not None:
+                    try:
+                        # shield: the /test handler owns this future; a gate
+                        # timeout here must not cancel it out from under it.
+                        await asyncio.wait_for(
+                            asyncio.shield(result_future),
+                            timeout=app_config.test_timeout + 2,
+                        )
+                    except TimeoutError:
+                        logger.warning(
+                            f"Test {test_id} didn't report within the serial-dispatch "
+                            "gate; dispatching the next test"
+                        )
+                    except asyncio.CancelledError:
+                        # The /test handler cancels its future when its client
+                        # abandons the request; that must not tear down the
+                        # plugin's SSE stream. A cancellation of the generator
+                        # itself (shutdown) still propagates.
+                        if not result_future.cancelled():
+                            raise
+                        logger.warning(
+                            f"Test {test_id} was abandoned by its client; "
+                            "dispatching the next test"
+                        )
 
             except TimeoutError:
                 # Timed out while waiting for a test to enter the queue

@@ -95,6 +95,12 @@ class PluginManager:
         # Create config dict
         config_data = app_config.model_dump()
 
+        # The plugin runs on this same machine and connects TO the server, so a
+        # wildcard *bind* address (used to expose the server to the network,
+        # e.g. for WSL clients) is not a connectable destination for it.
+        if config_data.get("host") in ("0.0.0.0", "::"):
+            config_data["host"] = "127.0.0.1"
+
         # Add bearer token to config if authentication is enabled
         if app_config.enable_auth:
             config_data["bearer_token"] = internal_auth.get_session_token()
